@@ -7,6 +7,7 @@
 #include "game/AimSilent.h"
 #include "game/Offsets.h"
 #include "func/esp.hpp"
+#include "globals.h"
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
