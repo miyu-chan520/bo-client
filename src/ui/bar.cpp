@@ -1,9 +1,9 @@
 #include "bar.hpp"
 #include "styles/styles.h"
-#include "nexora_logo.h"        // ← TAMBAHAN
+#include "nexora_logo.h"        // Logo header
 #include "imgui.h"
 #include "imgui_internal.h"
-#include <GLES3/gl3.h>           // ← untuk GLuint, glGenTextures, dll
+#include <GLES3/gl3.h>           // OpenGL ES 3 texture support
 #include <cmath>
 #include <cstdio>
 
@@ -135,16 +135,16 @@ namespace ui::bar {
                 radius
             );
         } else {
-            // Fallback: kotak merah dengan huruf N (kalau font ada)
+            // Fallback: red accent container with badge
             dl->AddCircleFilled({cx, cy}, radius, col(UITheme::accent, alpha));
         }
 
         // ============================================
-        // FPS TEXT (fallback tanpa font, pakai angka bulat)
+        // FPS indicator text
         // ============================================
-        // Karena font tidak ada, kita gambar 2 kotak sederhana sebagai placeholder
-        // KAMU bisa tambah font default dari ImGui::GetIO().Fonts->AddFontDefault()
-        // di draw.cpp kalau mau ada text.
+        // Simplified geometric placeholder rendering
+        // Standard ImGui font fallback
+        // Text rendering configuration in draw.cpp
 
         int fpsInt = (int)(fps + 0.5f);
         char buf[16];
@@ -162,7 +162,7 @@ namespace ui::bar {
     }
 
     // ============================================
-    // RENDER — icon FPS hanya saat menu tertutup
+    // Render FPS status widget only when main menu is collapsed
     // ============================================
     void render() {
         static float prog = 0.f;

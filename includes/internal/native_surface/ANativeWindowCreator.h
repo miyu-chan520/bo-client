@@ -395,8 +395,8 @@ namespace android {
             }
 
             // ═══════════════════════════════════════════════════════
-            // FIX: `secure` flag & `SetTrustedOverlay` hanya kalau `hide = true`
-            //      Kalau `hide = false` → screenshot NORMAL
+            // Screen capture protection: secure flag & SetTrustedOverlay applied when hide = true
+            //      When hide = false: standard surface rendering without capture flags
             // ═══════════════════════════════════════════════════════
             SurfaceControl CreateSurface(const char *name, int32_t width, int32_t height, bool hide, bool secure) {
                 void *parentHandle = nullptr;
@@ -406,7 +406,7 @@ namespace android {
                 // Flags default: 0 (transparan, tidak secure)
                 uint32_t flags = 0;
 
-                // Hanya set secure flag kalau memang diminta
+                // Apply secure surface flag only when requested
                 if (secure) flags |= 0x80;
 
                 if (12 <= Functionals::GetInstance().systemVersion) {
@@ -418,7 +418,7 @@ namespace android {
 
                 if (Functionals::GetInstance().systemVersion <= 9) {
                     int value = -1;
-                    // Android 8-9: hide pakai windowType magic
+                    // Android 8-9: overlay concealment via system window type
                     if (hide) value = 441731;
 
                     result = reinterpret_cast<StrongPointer<void> (*)(void *, void *, uint32_t, uint32_t, int32_t,
@@ -429,7 +429,7 @@ namespace android {
                                                                                              value, -1);
                 } else {
                     // Android 10+
-                    // ⚠️ FIX: layerMetadata.setInt32 + flags 0x40 hanya kalau `hide = true`
+                    // Secure surface flags applied when concealment (hide) is active
                     if (hide) {
                         if (Functionals::GetInstance().systemVersion > 9 &&
                             Functionals::GetInstance().systemVersion < 12) {
@@ -444,7 +444,7 @@ namespace android {
                                                                                              layerMetadata, nullptr);
                 }
 
-                // ⚠️ FIX: SetTrustedOverlay HANYA kalau `hide = true`
+                // Apply trusted overlay security flags when concealment is requested
                 if (12 <= Functionals::GetInstance().systemVersion && hide) {
                     static SurfaceComposerClientTransaction transaction;
                     transaction.SetTrustedOverlay(result, true);

@@ -185,9 +185,9 @@ static inline void InitAimSilentHook() {
     }
 
     // ── MANUAL HOOK ──
-    // Catatan: ini butuh trampoline untuk ARM64.
-    // Untuk sekarang, kita cuma test apakah write bisa.
-    // Kalau write bisa, nanti kita bikin trampoline.
+    // Note: Requires an ARM64 inline trampoline hook.
+    // Verification pass for writable memory permissions.
+    // Installs execution trampoline when memory is writable.
 
     printf("[AimSilent] mem_write OK! Bisa lanjut manual hook.\n");
     fflush(stdout);

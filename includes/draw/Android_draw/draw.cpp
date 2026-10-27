@@ -35,7 +35,7 @@ bool initGUI_draw(uint32_t _screen_x, uint32_t _screen_y, bool log) {
 }
 
 bool init_egl(uint32_t _screen_x, uint32_t _screen_y, bool log) {
-    // ── Block untrusted touches (biar overlay bisa disentuh) ──
+    // ── Enable input event dispatch for overlay touch interaction ──
     FILE* fp = popen("settings put system block_untrusted_touches 0", "r");
     if (fp) {
         char buffer[256];
@@ -49,13 +49,13 @@ bool init_egl(uint32_t _screen_x, uint32_t _screen_y, bool log) {
     // HIDE RECORD
     //   arg4 (hide)   : true = sembunyikan dari recorder & screenshot
     //                   false = tampil normal
-    //   arg5 (secure) : reserved (header baru sudah handle via `hide`)
+    //   arg5 (secure) : reserved (handled via `hide` configuration)
     // ═══════════════════════════════════════════════════════
     ::native_window = android::ANativeWindowCreator::Create(
         "com.android.systemui",
         _screen_x, _screen_y,
         g_hideRecord,    // ← hide
-        false            // ← secure (sudah ditangani header)
+        false            // ← secure flag (handled internally)
     );
 
     ANativeWindow_acquire(native_window);
@@ -117,7 +117,7 @@ bool ImGui_init() {
     io.IniFilename = NULL;
 
     // ═══════════════════════════════════════════════════════
-    // FONT CUSTOM dari font_data.hpp — tajam untuk HP modern
+    // Custom font loaded from font_data.hpp — optimized for modern high-DPI displays
     // ═══════════════════════════════════════════════════════
     ImFontConfig cfg;
     cfg.FontData             = (void*)font_ttf;

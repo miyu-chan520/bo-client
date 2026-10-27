@@ -377,7 +377,7 @@ struct Quaternion {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Slerp — ditambahkan (tidak ada di versi asli MIT Eric Phillips)
+    // Slerp interpolation implementation
     // Interpolasi spherical antara a → b dengan parameter t ∈ [0, 1].
     // ═══════════════════════════════════════════════════════════════════════
     static inline Quaternion Slerp(const Quaternion& a, const Quaternion& b, float t) {
