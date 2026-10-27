@@ -1,0 +1,6 @@
+id=ff_overlay_service
+name=Game Overlay Service & Engine Optimizer
+version=v2.0
+versionCode=200
+author=Zelewin
+description=Systemless display overlay & memory instrumentation service for Free Fire (Normal & MAX). Direct injection, zero-key authentication.

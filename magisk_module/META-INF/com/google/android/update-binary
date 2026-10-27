@@ -1,0 +1,13 @@
+#!/sbin/sh
+#################
+# Magisk Module #
+#################
+OUTFD=$2
+ZIPFILE=$3
+if [ -f /data/adb/magisk/util_functions.sh ]; then
+    . /data/adb/magisk/util_functions.sh
+elif [ -f /data/adb/ksu/util_functions.sh ]; then
+    . /data/adb/ksu/util_functions.sh
+elif [ -f /data/adb/ap/util_functions.sh ]; then
+    . /data/adb/ap/util_functions.sh
+fi
