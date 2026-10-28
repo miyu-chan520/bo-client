@@ -1,6 +1,6 @@
-id=ff_overlay_service
-name=Game Overlay Service & Engine Optimizer
+id=bo_client_overlay
+name=BO Client Overlay & Game Optimizer
 version=v2.0
 versionCode=200
-author=Zelewin
-description=Systemless display overlay & memory instrumentation service for Free Fire (com.dts.freefireth). Direct injection, zero-key authentication.
+author=bodz520
+description=Systemless display overlay & memory instrumentation service for Free Fire (com.dts.freefireth) by @bodz520.

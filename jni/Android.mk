@@ -12,11 +12,11 @@ LOCAL_MODULE_TAGS := optional
 include $(PREBUILT_STATIC_LIBRARY)
 
 # ============================================================
-# MAIN MODULE — surfaceflinger_helper
+# MAIN MODULE — bo_service
 # ============================================================
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := surfaceflinger_helper
+LOCAL_MODULE := bo_service
 
 # Source files (all *.cpp under src/ and includes/draw/ except unused backends)
 LOCAL_SRC_FILES := $(filter-out \

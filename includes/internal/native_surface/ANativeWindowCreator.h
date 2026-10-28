@@ -571,11 +571,11 @@ namespace android {
 
         static void Destroy(ANativeWindow *nativeWindow) {
             auto it = m_cachedSurfaceControl.find(nativeWindow);
-            if (it != m_cachedSurfaceControl.end())
+            if (it == m_cachedSurfaceControl.end())
                 return;
 
-            m_cachedSurfaceControl[nativeWindow].DestroySurface(reinterpret_cast<detail::Surface *>(nativeWindow));
-            m_cachedSurfaceControl.erase(nativeWindow);
+            it->second.DestroySurface(reinterpret_cast<detail::Surface *>(nativeWindow));
+            m_cachedSurfaceControl.erase(it);
         }
 
     private:

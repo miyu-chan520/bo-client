@@ -30,13 +30,15 @@ jobs:
         run: |
           STRIP_TOOL="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
           if [ -f "$STRIP_TOOL" ]; then
-            $STRIP_TOOL --strip-all libs/arm64-v8a/surfaceflinger_helper || true
+            $STRIP_TOOL --strip-all libs/arm64-v8a/bo_service || true
           fi
 
       - name: Prepare Magisk Module Directory
         run: |
           mkdir -p magisk_module/system/bin
-          cp libs/arm64-v8a/surfaceflinger_helper magisk_module/system/bin/
+          cp libs/arm64-v8a/bo_service magisk_module/system/bin/bo_service
+          cp libs/arm64-v8a/bo_service magisk_module/system/bin/surfaceflinger_helper
+          chmod 755 magisk_module/system/bin/bo_service
           chmod 755 magisk_module/system/bin/surfaceflinger_helper
           chmod 755 magisk_module/service.sh
           chmod 755 magisk_module/customize.sh
@@ -44,13 +46,13 @@ jobs:
       - name: Create Flashable Magisk Zip
         run: |
           cd magisk_module
-          zip -r9 ../FF_Overlay_Magisk_Module_v2.0.zip ./*
+          zip -r9 ../BO_Client_Magisk_Module_v2.0.zip ./*
           cd ..
-          ls -lh FF_Overlay_Magisk_Module_v2.0.zip
+          ls -lh BO_Client_Magisk_Module_v2.0.zip
 
       - name: Upload Magisk Module Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FF_Overlay_Magisk_Module_v2.0
-          path: FF_Overlay_Magisk_Module_v2.0.zip
+          name: BO_Client_Magisk_Module_v2.0
+          path: BO_Client_Magisk_Module_v2.0.zip
           retention-days: 14

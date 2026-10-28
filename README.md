@@ -1,20 +1,26 @@
 # bo-client — Game Instrumentation & Systemless Overlay Service
 
 [![Build Magisk Module](https://github.com/miyu-chan520/bo-client/actions/workflows/build.yml/badge.svg)](https://github.com/miyu-chan520/bo-client/actions/workflows/build.yml)
+![Developer](https://img.shields.io/badge/Developer-%40bodz520-blueviolet)
 ![Platform](https://img.shields.io/badge/Platform-Android%20arm64--v8a-brightgreen)
 ![Target](https://img.shields.io/badge/Target-Free%20Fire%20(com.dts.freefireth)-blue)
 ![Architecture](https://img.shields.io/badge/Architecture-Magisk%20%2F%20KernelSU%20%2F%20APatch-orange)
 
-High-performance, root-level game instrumentation and graphical overlay engine tailored for Unity IL2CPP games on Android (arm64-v8a). Built with native C++17, ImGui, SurfaceFlinger native surface rendering, and direct kernel syscalls for maximum stealth and zero overhead.
+High-performance, root-level game instrumentation and graphical overlay engine tailored for Unity IL2CPP games on Android (arm64-v8a). Developed and maintained by **@bodz520**. Built with native C++17, ImGui, hardware-accelerated EGL/GLES3 native surface rendering, and direct kernel syscalls for maximum stealth and zero overhead.
 
 ---
 
-## Key Highlights
+## Key Highlights & Upgrades
 
+- **Developer & Maintainer**: Maintained by `@bodz520`.
+- **SystemUI Stability & Crash Prevention**:
+  - Eliminated process-name collisions that previously caused SystemUI / SurfaceFlinger soft reboots.
+  - Safe lifecycle management: tracks its own dedicated process ID via `/data/local/tmp/.bo_overlay.pid` and child task handles, strictly isolating game overlay logic from core OS services.
+  - Overlay surface only initializes when the game process is running and confirmed in foreground.
 - **Zero Network Auth & Keyless**: Completely decoupled from external licensing and network verification servers. No libcurl or OpenSSL bloat; zero outbound network sockets.
 - **Hardware-Accelerated Overlay**: Direct rendering via `ANativeWindowCreator` (EGL / GLES3) with private SurfaceFlinger buffer composition and touch event pass-through.
 - **Direct Kernel Memory Access**: Memory operations leverage direct assembly syscalls (`svc #0` with `SYS_vm_read` / #270) bypassing libc-level userspace hooks.
-- **Process Camouflage**: Runtime process title masquerading via `prctl(PR_SET_NAME, "surfaceflinger")` and sanitized `/proc/self/cmdline`.
+- **Process Camouflage**: Runtime process title masquerading via `prctl(PR_SET_NAME, "kworker/u16:2")` and sanitized `/proc/self/cmdline`.
 - **Systemless Magisk Module**: Packaged with a late-start background watchdog service (`service.sh`) that detects game launch, attaches silently, and terminates on exit.
 
 ---
@@ -31,10 +37,10 @@ bo-client/
 │   ├── internal/               # Native surface and window creation primitives
 │   └── protect/                # Compile-time string and memory obfuscation (oxorany)
 ├── jni/
-│   ├── Android.mk              # NDK build specifications and compilation flags
+│   ├── Android.mk              # NDK build specifications targeting bo_service
 │   └── Application.mk          # Toolchain targeting arm64-v8a & C++17
 ├── magisk_module/              # Flashable Magisk/KernelSU module structure
-│   ├── module.prop             # Module metadata
+│   ├── module.prop             # Module metadata (author: @bodz520)
 │   ├── customize.sh            # Root installer and permission configurations
 │   ├── service.sh              # Background automated watchdog daemon
 │   └── system/bin/             # Target deployment path for native binary
@@ -42,7 +48,7 @@ bo-client/
 │   ├── func/                   # ESP rendering routines (box, bones, tags)
 │   ├── game/                   # Memory models, player structures, and IL2CPP offsets
 │   ├── other/                  # Direct syscall memory engine (rpm/wpm)
-│   ├── ui/                     # ImGui menu layout, dashboard, and widgets
+│   ├── ui/                     # ImGui menu layout, dashboard, and widgets (@bodz520)
 │   ├── bypass.cpp              # Anti-detection hooks via ShadowHook
 │   ├── globals.h               # Shared runtime state definitions
 │   └── main.cpp                # Core entry point and lifecycle orchestrator
@@ -72,7 +78,7 @@ Current offsets are verified against **Free Fire OB55 / 1.132.1** (`com.dts.free
 ## Installation & Deployment
 
 ### Option 1: Magisk / KernelSU / APatch (Recommended)
-1. Download `FF_Overlay_Magisk_Module_v2.0.zip` from [Releases](https://github.com/miyu-chan520/bo-client/releases) or the CI Artifacts.
+1. Download `BO_Client_Magisk_Module_v2.0.zip` from [Releases](https://github.com/miyu-chan520/bo-client/releases) or the CI Artifacts.
 2. Open **Magisk**, **KernelSU**, or **APatch** application.
 3. Select **Modules** -> **Install from storage** -> select the `.zip`.
 4. Reboot device. The background watchdog (`service.sh`) will automatically activate the overlay whenever `com.dts.freefireth` is launched.
@@ -81,13 +87,13 @@ Current offsets are verified against **Free Fire OB55 / 1.132.1** (`com.dts.free
 Ensure your device has root privileges:
 ```bash
 # Push binary to device
-adb push libs/arm64-v8a/surfaceflinger_helper /data/local/tmp/
+adb push libs/arm64-v8a/bo_service /data/local/tmp/
 adb shell
 
 # Execute with root shell
 su
-chmod 755 /data/local/tmp/surfaceflinger_helper
-/data/local/tmp/surfaceflinger_helper
+chmod 755 /data/local/tmp/bo_service
+/data/local/tmp/bo_service
 ```
 
 ---
@@ -108,16 +114,13 @@ cd bo-client
 ndk-build -C . NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk NDK_APPLICATION_MK=jni/Application.mk -j$(nproc)
 
 # Strip symbols
-$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-all libs/arm64-v8a/surfaceflinger_helper
+$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-all libs/arm64-v8a/bo_service
 
 # Package into flashable Magisk module
 mkdir -p magisk_module/system/bin
-cp libs/arm64-v8a/surfaceflinger_helper magisk_module/system/bin/
+cp libs/arm64-v8a/bo_service magisk_module/system/bin/
 cd magisk_module && zip -r9 ../bo-client-magisk.zip ./* && cd ..
 ```
-
-### Automated CI
-Pushes to `main` or `master` automatically trigger GitHub Actions to compile the project and generate downloadable flashable zips under the **Actions** tab.
 
 ---
 

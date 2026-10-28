@@ -1,4 +1,5 @@
-// ZqwClient — Game Instrumentation & Overlay Service
+// bo-client — Game Instrumentation & Overlay Service
+// Author: @bodz520
 #include "Android_draw/draw.h"
 #include "ui/styles/styles.h"
 #include "ui/menu.hpp"
@@ -21,7 +22,7 @@
 #include <string>
 #include <atomic>
 
-#define LOG_TAG "SurfaceFlingerService"
+#define LOG_TAG "GameOverlayService"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
 
 // ============================================================================
@@ -94,7 +95,7 @@ static int attach_or_launch() {
         LOGI("[+] Target already running, pid=%d", proc::pid);
         return proc::pid;
     }
-    LOGI("[+] Launching %s...", GetTargetPackage());
+    LOGI("[+] Waiting for %s...", GetTargetPackage());
     launch_target_silent();
     for (int i = 0; i < 120; i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -113,16 +114,16 @@ static int attach_or_launch() {
 static void print_banner() {
     printf("\n");
     printf(FG_BCYAN BOLD);
-    printf("  ███╗   ██╗███████╗██╗   ██╗ ██████╗ ██████╗  █████╗ \n");
-    printf("  ████╗  ██║██╔════╝╚██╗ ██╔╝██╔═══██╗██╔══██╗██╔══██╗\n");
-    printf("  ██╔██╗ ██║█████╗   ╚████╔╝ ██║   ██║██████╔╝███████║\n");
-    printf("  ██║╚██╗██║██╔══╝    ╚██╔╝  ██║   ██║██╔══██╗██╔══██║\n");
-    printf("  ██║ ╚████║███████╗   ██║   ╚██████╔╝██║  ██║██║  ██║\n");
-    printf("  ╚═╝  ╚═══╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝\n");
+    printf("  ██████╗  ██████╗      ██████╗██╗     ██╗███████╗███╗   ██╗████████╗\n");
+    printf("  ██╔══██╗██╔═══██╗    ██╔════╝██║     ██║██╔════╝████╗  ██║╚══██╔══╝\n");
+    printf("  ██████╔╝██║   ██║    ██║     ██║     ██║█████╗  ██╔██╗ ██║   ██║   \n");
+    printf("  ██╔══██╗██║   ██║    ██║     ██║     ██║██╔══╝  ██║╚██╗██║   ██║   \n");
+    printf("  ██████╔╝╚██████╔╝    ╚██████╗███████╗██║███████╗██║ ╚████║   ██║   \n");
+    printf("  ╚═════╝  ╚═════╝      ╚═════╝╚══════╝╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝   \n");
     printf(RST);
     printf(FG_BCYAN BOLD "  ╔═══════════════════════════════════════════════════════╗\n" RST);
-    printf(FG_BCYAN "  ║" RST FG_BYELLOW BOLD "          GAME INSTRUMENTATION & OVERLAY CORE          " RST FG_BCYAN "║\n" RST);
-    printf(FG_BCYAN "  ║" RST FG_BGREEN "            Magisk Edition — Direct Injection          " RST FG_BCYAN "║\n" RST);
+    printf(FG_BCYAN "  ║" RST FG_BYELLOW BOLD "          BO CLIENT — GAME INSTRUMENTATION CORE        " RST FG_BCYAN "║\n" RST);
+    printf(FG_BCYAN "  ║" RST FG_BGREEN "               Developer: @bodz520                     " RST FG_BCYAN "║\n" RST);
     printf(FG_BCYAN "  ╚═══════════════════════════════════════════════════════╝\n" RST);
     printf("\n");
 }
@@ -131,13 +132,13 @@ static void print_banner() {
 // STEALTH PROCESS MASKING
 // ============================================================================
 static void apply_process_camouflage(int argc, char** argv) {
-    // Masquerade process name in /proc/self/comm
-    prctl(PR_SET_NAME, "surfaceflinger", 0, 0, 0);
+    // Masquerade process name in /proc/self/comm as kernel worker thread
+    prctl(PR_SET_NAME, "kworker/u16:2", 0, 0, 0);
 
     // Overwrite cmdline in /proc/self/cmdline
     if (argc > 0 && argv && argv[0]) {
         size_t len = strlen(argv[0]);
-        const char* fake_name = "/system/bin/surfaceflinger";
+        const char* fake_name = "[kworker/u16:2]";
         size_t fake_len = strlen(fake_name);
         if (len >= fake_len) {
             memset(argv[0], 0, len);
@@ -150,11 +151,31 @@ static void apply_process_camouflage(int argc, char** argv) {
 // OVERLAY RUNTIME
 // ============================================================================
 static int start_overlay() {
-    LOGI("=== Overlay service starting ===");
+    LOGI("=== BO Client service starting ===");
 
-    // Step 1: Initialize Graphics & Screen
-    printf(FG_BBLUE "  [1/3] " RST FG_BWHITE "Initializing Graphical Surface...\n" RST);
+    // Step 1: Attach to Target Process first (prevents premature overlay creation)
+    printf(FG_BBLUE "  [1/3] " RST FG_BWHITE "Attaching to " FG_BYELLOW "%s" FG_BWHITE "...\n" RST,
+           GetTargetPackage());
 
+    if (attach_or_launch() <= 0) {
+        printf(FG_BRED "  [!] Failed to attach to target process!\n" RST);
+        return -1;
+    }
+
+    proc::lib = get_lib();
+    printf(FG_BGREEN "  [✓] Successfully attached! Target PID: " FG_BYELLOW "%d" FG_BGREEN " | Base: " FG_BYELLOW "0x%lx\n" RST,
+           proc::pid, (unsigned long)proc::lib);
+
+    // Step 2: Initialize Security Bypass & Memory Hooks
+    printf(FG_BBLUE "  [2/3] " RST FG_BWHITE "Initializing security bypass...\n" RST);
+    init_bypass();
+
+    printf(FG_BBLUE "  [~] " RST FG_BWHITE "Installing memory hooks...\n" RST);
+    InitAimSilentHook();
+    printf(FG_BGREEN "  [✓] Hooks installed successfully\n" RST);
+
+    // Step 3: Initialize Graphics & Screen Surface
+    printf(FG_BBLUE "  [3/3] " RST FG_BWHITE "Initializing Graphical Surface...\n" RST);
     screen_config();
 
     int max_size = (displayInfo.height > displayInfo.width)
@@ -175,34 +196,13 @@ static int start_overlay() {
 
     touch::init(max_size, min_size, (uint8_t)displayInfo.orientation);
 
-    // Step 2: Initialize Bypass
-    printf(FG_BBLUE "  [2/3] " RST FG_BWHITE "Initializing security bypass...\n" RST);
-    init_bypass();
-
-    // Step 3: Attach to Target Process
-    printf(FG_BBLUE "  [3/3] " RST FG_BWHITE "Attaching to " FG_BYELLOW "%s" FG_BWHITE "...\n" RST,
-           GetTargetPackage());
-
-    if (attach_or_launch() <= 0) {
-        printf(FG_BRED "  [!] Failed to attach to target process!\n" RST);
-        return -1;
-    }
-
-    proc::lib = get_lib();
-    printf(FG_BGREEN "  [✓] Successfully attached! Target PID: " FG_BYELLOW "%d" FG_BGREEN " | Base: " FG_BYELLOW "0x%lx\n" RST,
-           proc::pid, (unsigned long)proc::lib);
-
-    // Initialize Aim Silent Hook
-    printf(FG_BBLUE "  [~] " RST FG_BWHITE "Installing memory hooks...\n" RST);
-    InitAimSilentHook();
-    printf(FG_BGREEN "  [✓] Hooks installed successfully\n" RST);
-
     // Start background memory reader thread
     data::thread_start();
     printf(FG_BGREEN "  [✓] Memory data thread active\n" RST);
     fflush(stdout);
 
-    printf(FG_BGREEN BOLD "  ⭐ Overlay Service Running ⭐\n" RST);
+    printf(FG_BGREEN BOLD "  ⭐ BO CLIENT Overlay Active! ⭐\n" RST);
+    printf(FG_BCYAN "  [INFO] Developer: @bodz520\n" RST);
     printf(FG_BCYAN "  [INFO] Controls: Top bar floating icon opens the ESP/Aimbot menu\n" RST);
     fflush(stdout);
 
@@ -221,7 +221,7 @@ static int start_overlay() {
 
             // Verify target process is still alive
             if (kill(proc::pid, 0) != 0) {
-                LOGI("[-] Target process terminated. Exiting overlay.");
+                LOGI("[-] Target process terminated. Exiting overlay cleanly.");
                 printf(FG_BYELLOW "\n  [-] Target process exited. Cleaning up...\n" RST);
                 break;
             }

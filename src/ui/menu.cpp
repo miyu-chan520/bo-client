@@ -281,9 +281,9 @@ namespace ui::menu {
         NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Information"), "Info");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
-        NS_InfoRow(oxorany("Client"), oxorany("NEXORA"), C_Accent());
-        NS_InfoRow(oxorany("Version"), oxorany("1.0"));
-        NS_InfoRow(oxorany("Dev"), oxorany("@Zelewin"));
+        NS_InfoRow(oxorany("Client"), oxorany("BO CLIENT"), C_Accent());
+        NS_InfoRow(oxorany("Version"), oxorany("2.0 VIP"));
+        NS_InfoRow(oxorany("Dev"), oxorany("@bodz520"));
         char libBuf[64];
         snprintf(libBuf, sizeof(libBuf), "0x%lx", proc::lib);
         NS_InfoRow(oxorany("Library"), libBuf);
@@ -568,7 +568,7 @@ namespace ui::menu {
                     IM_COL32(255,255,255,255), "N");
 
         dl->AddText(ImGui::GetFont(), 14.f, {logoX + logoSize + 12.f, wp.y + 14.f},
-                    col(UITheme::text, ma), "NEXORA");
+                    col(UITheme::text, ma), "BO CLIENT");
         dl->AddText(ImGui::GetFont(), 9.f, {logoX + logoSize + 12.f, wp.y + 32.f},
                     col(UITheme::text_dim, ma), "FREE FIRE");
 
@@ -643,9 +643,9 @@ namespace ui::menu {
         bg->AddLine({wp.x+12, sFootY}, {wp.x+sidebarW-12, sFootY},
                     col(UITheme::border, ma), 1.f);
         dl->AddText(ImGui::GetFont(), 9.f, {wp.x+14, sFootY+10},
-                    col(UITheme::text_dim, ma), "NEXORA v1.0");
+                    col(UITheme::text_dim, ma), "BO CLIENT v2.0");
         dl->AddText(ImGui::GetFont(), 8.f, {wp.x+14, sFootY+24},
-                    col(UITheme::accent, ma), "@Zelewin");
+                    col(UITheme::accent, ma), "@bodz520");
 
         float contentX = wp.x + sidebarW + 20.f;
         float contentY = wp.y + headerH + 18.f;
@@ -690,11 +690,11 @@ namespace ui::menu {
         ImGui::SameLine(0, 8);
         if (NS_Button("f_reset", "Reset", {70, 28}, false)) {}
 
-        const char* fh = "@Zelewin";
+        const char* fh = "@bodz520";
         float fhw = ImGui::CalcTextSize(fh).x;
         dl->AddText(ImGui::GetFont(), 10.f,
             {wp.x + ws.x - fhw - 90, fy + 16}, col(UITheme::accent, ma), fh);
-        const char* fv = "V1.0";
+        const char* fv = "V2.0 VIP";
         float fvw = ImGui::CalcTextSize(fv).x;
         dl->AddText(ImGui::GetFont(), 10.f,
             {wp.x + ws.x - fvw - 16, fy + 16}, col(UITheme::text_dim, ma), fv);

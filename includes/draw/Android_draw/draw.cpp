@@ -52,10 +52,10 @@ bool init_egl(uint32_t _screen_x, uint32_t _screen_y, bool log) {
     //   arg5 (secure) : reserved (handled via `hide` configuration)
     // ═══════════════════════════════════════════════════════
     ::native_window = android::ANativeWindowCreator::Create(
-        "com.android.systemui",
+        "SurfaceView[Overlay]",
         _screen_x, _screen_y,
-        g_hideRecord,    // ← hide
-        false            // ← secure flag (handled internally)
+        g_hideRecord,    // Screen capture protection
+        false            // Handled via ANativeWindowCreator
     );
 
     ANativeWindow_acquire(native_window);
