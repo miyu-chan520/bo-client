@@ -165,6 +165,12 @@ namespace Offsets {
     constexpr uintptr_t HitInfo_DamageRatio    = 0x5C;
     constexpr uintptr_t HitInfo_IgnoreHappens  = 0x70;
     constexpr uintptr_t HitInfo_ViewBlocked    = 0x71;
+    constexpr uintptr_t HitInfo_HitGroupShort  = 0x80;
+
+    // ── Additional Player Aim Fields ──
+    constexpr uintptr_t Player_AuxAimInfo         = 0xE58;
+    constexpr uintptr_t Player_LastAimTargetRef   = 0xE68;
+    constexpr uintptr_t Player_CurrentAimRotation = 0x1A8C;
 
     // ── Field DamageInfo (HNLIMBLIANL) ──
     constexpr uintptr_t DmgInfo_Damage         = 0x10;

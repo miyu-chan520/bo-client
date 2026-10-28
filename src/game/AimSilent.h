@@ -6,191 +6,214 @@
 #include "../other/utils.hpp"
 #include "math.hpp"
 #include "data.hpp"
+#include "../ui/cfg.hpp"
 #include "../protect/oxorany.hpp"
 #include <cstdint>
 #include <mutex>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <atomic>
 #include <android/log.h>
 
-// ===================== AIM SILENT (MANUAL HOOK) =====================
 #define AS_LOG(...) do { \
     __android_log_print(ANDROID_LOG_INFO, "AimSilent", __VA_ARGS__); \
-    printf("[AimSilent] " __VA_ARGS__); \
-    printf("\n"); \
-    fflush(stdout); \
 } while(0)
 
-// ==================== GLOBAL TOGGLES ====================
+// Global legacy toggle bindings (mirrors cfg::aim)
 inline bool AimSilentEnabled = false;
 inline bool AimSilentNobita  = false;
 static bool g_AimSilentHookInstalled = false;
 
-// ==================== HELPER FUNCTIONS ====================
+namespace aim_engine {
 
-static void *GetHeadColliderSilent(void *player) {
-    if (!player) return nullptr;
-    void *(*_GetHead)(void *) = (void *(*)(void *))((uintptr_t)proc::lib + Offsets::Player_get_HeadCollider);
-    return _GetHead(player);
-}
+    // ── Helper: Find Best Target ──
+    struct AimTarget {
+        uint64_t addr = 0;
+        Vector3  worldPos = Vector3::Zero();
+        Vector3  screenPos = Vector3::Zero();
+        uint64_t headCollider = 0;
+        float    screenDist = 99999.0f;
+        float    distance = 99999.0f;
+    };
 
-static void *GetHeadTFSilent(void *player) {
-    if (!player) return nullptr;
-    void *(*_GetHead)(void *) = (void *(*)(void *))((uintptr_t)proc::lib + Offsets::Player_GetHeadTF);
-    return _GetHead(player);
-}
-
-static Vector3 GetHeadPositionSilent(void *player) {
-    if (!player) return Vector3::Zero();
-    void *headTF = GetHeadTFSilent(player);
-    if (!headTF) return Vector3::Zero();
-    return GetNodePosition((uint64_t)headTF);
-}
-
-static void *GetClosestEnemySilent() {
-    std::lock_guard<std::mutex> lk(data::players_mutex);
-
-    void *bestTarget = nullptr;
-    float bestDist = 99999.0f;
-
-    uint64_t localAddr = data::localPlayerAddr.load(std::memory_order_relaxed);
-    if (!localAddr) return nullptr;
-
-    for (auto& p : data::players) {
-        if (!p.addr) continue;
-        if (p.addr == localAddr) continue;
-        if (p.curHP <= 0) continue;
-        if (p.distance > 1000.0f) continue;
-
-        if (p.distance < bestDist) {
-            bestDist = p.distance;
-            bestTarget = (void*)p.addr;
-        }
-    }
-
-    return bestTarget;
-}
-
-// ==================== TEST WRITE ====================
-static inline bool TestWrite(uintptr_t addr) {
-    uint32_t orig = rpm<uint32_t>(addr);
-    AS_LOG("Test read @0x%lx = 0x%08x", (unsigned long)addr, orig);
-
-    bool wr = wpm<uint32_t>(addr, orig);
-    AS_LOG("Test write @0x%lx = %d", (unsigned long)addr, wr);
-    return wr;
-}
-
-// ==================== HOOK IMPLEMENTATION ====================
-// Hook Player.TakeDamage (9-param)
-static int (*orig_OnCalcDamage_9)(void *player, int damage, uint damagerID,
-                         void *damageInfo, int hitGroup,
-                         Vector3 hitPos, Vector3 hitNormal,
-                         void *checkParams, void *weaponInfo, uint vehicleID) = nullptr;
-
-static int hook_OnCalcDamage_9(void *player, int damage, uint damagerID,
-                      void *damageInfo, int hitGroup,
-                      Vector3 hitPos, Vector3 hitNormal,
-                      void *checkParams, void *weaponInfo, uint vehicleID) {
-
-    static int callCount = 0;
-    if (callCount++ < 30) {
-        AS_LOG("HOOK9 #%d | player=%p dmgInfo=%p hitGroup=%d dmg=%d",
-               callCount, player, damageInfo, hitGroup, damage);
-    }
-
-    if (!AimSilentEnabled && !AimSilentNobita) {
-        return orig_OnCalcDamage_9(player, damage, damagerID, damageInfo,
-                                 hitGroup, hitPos, hitNormal,
-                                 checkParams, weaponInfo, vehicleID);
-    }
-
-    if (!player || !damageInfo) {
-        return orig_OnCalcDamage_9(player, damage, damagerID, damageInfo,
-                                 hitGroup, hitPos, hitNormal,
-                                 checkParams, weaponInfo, vehicleID);
-    }
-
-    AS_LOG("AIM ACTIVE (9)! player=%p dmgInfo=%p", player, damageInfo);
-
-    void *target = GetClosestEnemySilent();
-    if (!target) {
-        return orig_OnCalcDamage_9(player, damage, damagerID, damageInfo,
-                                 hitGroup, hitPos, hitNormal,
-                                 checkParams, weaponInfo, vehicleID);
-    }
-
-    Vector3 enemyHeadPos = GetHeadPositionSilent(target);
-    if (enemyHeadPos == Vector3::Zero()) {
-        return orig_OnCalcDamage_9(player, damage, damagerID, damageInfo,
-                                 hitGroup, hitPos, hitNormal,
-                                 checkParams, weaponInfo, vehicleID);
-    }
-
-    Vector3 myPos = Vector3::Zero();
-    {
+    static inline AimTarget FindBestTarget(const Vector3& localPos) {
+        AimTarget best;
         uint64_t localAddr = data::localPlayerAddr.load(std::memory_order_relaxed);
-        if (localAddr) {
-            uint64_t headNode = rpm<uint64_t>(localAddr + Offsets::Bone_Head);
-            if (headNode) myPos = GetNodePosition(headNode);
+        if (!localAddr) return best;
+
+        float screenCx = g_sw * 0.5f;
+        float screenCy = g_sh * 0.5f;
+
+        std::lock_guard<std::mutex> lk(data::players_mutex);
+        for (const auto& p : data::players) {
+            if (!p.addr || p.addr == localAddr) continue;
+            if (p.curHP <= 0) continue;
+            if (p.distance > cfg::aim::max_range) continue;
+
+            // Select bone screen coordinate based on configuration
+            Vector3 boneScreen = p.Head;
+            if (cfg::aim::target_bone == 1 && ok(p.Breast)) boneScreen = p.Breast;
+            else if (cfg::aim::target_bone == 2 && ok(p.Hip)) boneScreen = p.Hip;
+
+            if (!ok(boneScreen)) continue;
+
+            float sDist = hypotf(boneScreen.x - screenCx, boneScreen.y - screenCy);
+
+            // FOV check if FOV is active
+            if (cfg::aim::draw_fov || cfg::aim::fov > 0.0f) {
+                if (sDist > cfg::aim::fov) continue;
+            }
+
+            // Prefer closest to crosshair (or closest distance if sDist is equal)
+            if (sDist < best.screenDist) {
+                // Resolve 3D world position of target bone
+                uintptr_t boneOff = Offsets::Bone_Head;
+                if (cfg::aim::target_bone == 1) boneOff = Offsets::Bone_Breast;
+                else if (cfg::aim::target_bone == 2) boneOff = Offsets::Bone_Hip;
+
+                uint64_t boneNode = rpm<uint64_t>(p.addr + boneOff);
+                if (!boneNode) boneNode = rpm<uint64_t>(p.addr + Offsets::Bone_Head);
+
+                Vector3 wPos = boneNode ? GetNodePosition(boneNode) : Vector3::Zero();
+                if (wPos == Vector3::Zero()) continue;
+
+                best.addr = p.addr;
+                best.worldPos = wPos;
+                best.screenPos = boneScreen;
+                best.headCollider = rpm<uint64_t>(p.addr + Offsets::Player_HedColider);
+                best.screenDist = sDist;
+                best.distance = p.distance;
+            }
+        }
+        return best;
+    }
+
+    // ── Aim Rotation (Euler to Quaternion) ──
+    static inline Vector4 DirectionToQuaternion(const Vector3& dir) {
+        float len = Vector3::Magnitude(dir);
+        if (len < 0.0001f) return Vector4(0, 0, 0, 1);
+
+        float yaw = atan2f(dir.x, dir.z);
+        float pitch = -asinf(dir.y / len);
+
+        float cy = cosf(yaw * 0.5f);
+        float sy = sinf(yaw * 0.5f);
+        float cp = cosf(pitch * 0.5f);
+        float sp = sinf(pitch * 0.5f);
+
+        Vector4 q;
+        q.w = cy * cp;
+        q.x = cy * sp;
+        q.y = sy * cp;
+        q.z = -sy * sp;
+        return q;
+    }
+
+    // ── Main Aim Engine Tick (called from data thread) ──
+    inline void Update(uint64_t localAddr, const Vector3& localPos) {
+        if (!localAddr) return;
+
+        // Synchronize legacy flags with config
+        bool isSilentActive = cfg::aim::silent || AimSilentEnabled;
+        bool isNobitaActive = cfg::aim::nobita || AimSilentNobita;
+        bool isAutoHeadActive = cfg::aim::auto_headshot;
+        bool isAimlockActive = cfg::aim::enable;
+
+        bool anyActive = isSilentActive || isNobitaActive || isAutoHeadActive || isAimlockActive;
+        if (!anyActive) return;
+
+        // Check isFiring if on_fire_only is enabled
+        bool isFiring = rpm<bool>(localAddr + Offsets::Player_IsFiring);
+        if (cfg::aim::on_fire_only && !isFiring) {
+            return;
+        }
+
+        // 1. Nobita Mode: Write head collider to ALL valid enemies in range
+        if (isNobitaActive) {
+            std::lock_guard<std::mutex> lk(data::players_mutex);
+            for (const auto& p : data::players) {
+                if (p.addr && p.addr != localAddr && p.curHP > 0 && p.distance <= cfg::aim::max_range) {
+                    uint64_t hc = rpm<uint64_t>(p.addr + Offsets::Player_HedColider);
+                    if (hc) {
+                        wpm<uint64_t>(p.addr + Offsets::Player_ColWrite, hc);
+                    }
+                }
+            }
+        }
+
+        // 2. Target acquisition for Aimlock / Silent Aim / Target Headshot
+        AimTarget target = FindBestTarget(localPos);
+        if (!target.addr || target.worldPos == Vector3::Zero()) return;
+
+        // Auto Headshot: Write target's head collider to its active collision receiver
+        if (isAutoHeadActive || isSilentActive || isNobitaActive) {
+            if (target.headCollider) {
+                wpm<uint64_t>(target.addr + Offsets::Player_ColWrite, target.headCollider);
+            }
+        }
+
+        // Silent Aim: Overwrite CGKJLKPMGDJ (Player_AimInfo) on local player
+        if (isSilentActive || isNobitaActive) {
+            uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
+            if (aimInfo) {
+                Vector3 myHead = localPos;
+                Vector3 dir = (myHead == Vector3::Zero())
+                              ? Vector3(0.f, 0.f, 1.f)
+                              : Vector3::Normalize(target.worldPos - myHead);
+
+                // Write HitLocation (0x28), RayDir (0x40), HitNormal (0x34)
+                wpm<Vector3>(aimInfo + Offsets::HitInfo_HitLocation, target.worldPos);
+                wpm<Vector3>(aimInfo + Offsets::HitInfo_RayDir, dir);
+                wpm<Vector3>(aimInfo + Offsets::HitInfo_HitNormal, Vector3(0.f, 1.f, 0.f));
+
+                // Write HitCollider (0x20)
+                if (target.headCollider) {
+                    wpm<uint64_t>(aimInfo + Offsets::HitInfo_HitCollider, target.headCollider);
+                }
+
+                // Force Headshot hitgroup & maximum multiplier
+                wpm<int>(aimInfo + Offsets::HitInfo_HitGroup, 1);
+                wpm<int16_t>(aimInfo + Offsets::HitInfo_HitGroupShort, 1);
+                wpm<float>(aimInfo + Offsets::HitInfo_DamageRatio, 1.0f);
+                wpm<bool>(aimInfo + Offsets::HitInfo_IgnoreHappens, false);
+                wpm<bool>(aimInfo + Offsets::HitInfo_ViewBlocked, false);
+
+                // Update weapon last aiming target reference (0xE68)
+                wpm<uint64_t>(localAddr + Offsets::Player_LastAimTargetRef, target.addr);
+
+                // AuxAimInfo (0xE58)
+                uint64_t auxAim = rpm<uint64_t>(localAddr + Offsets::Player_AuxAimInfo);
+                if (auxAim) {
+                    wpm<Vector3>(auxAim + Offsets::HitInfo_HitLocation, target.worldPos);
+                    wpm<Vector3>(auxAim + Offsets::HitInfo_RayDir, dir);
+                    if (target.headCollider) {
+                        wpm<uint64_t>(auxAim + Offsets::HitInfo_HitCollider, target.headCollider);
+                    }
+                    wpm<int>(auxAim + Offsets::HitInfo_HitGroup, 1);
+                    wpm<int16_t>(auxAim + Offsets::HitInfo_HitGroupShort, 1);
+                    wpm<bool>(auxAim + Offsets::HitInfo_IgnoreHappens, false);
+                    wpm<bool>(auxAim + Offsets::HitInfo_ViewBlocked, false);
+                }
+            }
+        }
+
+        // Aimlock: Calculate rotation facing target and write to Player_Rotation (0x614)
+        if (isAimlockActive) {
+            Vector3 myHead = localPos;
+            if (myHead != Vector3::Zero()) {
+                Vector3 dir = Vector3::Normalize(target.worldPos - myHead);
+                Vector4 quat = DirectionToQuaternion(dir);
+
+                wpm<Vector4>(localAddr + Offsets::Player_Rotation, quat);
+                wpm<Vector4>(localAddr + Offsets::Player_CurrentAimRotation, quat);
+            }
         }
     }
-
-    Vector3 direction = (myPos == Vector3::Zero())
-                        ? hitPos
-                        : Vector3::Normalize(enemyHeadPos - myPos);
-
-    AS_LOG("MODIFY: headPos=(%.1f,%.1f,%.1f)",
-           enemyHeadPos.x, enemyHeadPos.y, enemyHeadPos.z);
-
-    *(short *)((uintptr_t)damageInfo + Offsets::DmgInfo_HitGroup) = 1;
-    *(Vector3 *)((uintptr_t)damageInfo + Offsets::DmgInfo_HitLocation) = enemyHeadPos;
-    *(Vector3 *)((uintptr_t)damageInfo + Offsets::DmgInfo_HitNormal) = direction;
-    *(Vector3 *)((uintptr_t)damageInfo + Offsets::DmgInfo_RayDir) = direction;
-
-    hitGroup = 1;
-
-    return orig_OnCalcDamage_9(player, damage, damagerID, damageInfo,
-                              hitGroup, enemyHeadPos, direction,
-                              checkParams, weaponInfo, vehicleID);
 }
 
-// ==================== HOOK INIT (MANUAL) ====================
+// ── Hook init backwards compatibility ──
 static inline void InitAimSilentHook() {
-    if (g_AimSilentHookInstalled) return;
-
-    printf("[AimSilent] === Init start (manual hook) ===\n");
-    fflush(stdout);
-
-    uintptr_t base = (uintptr_t)proc::lib;
-    printf("[AimSilent] base=0x%lx\n", (unsigned long)base);
-    fflush(stdout);
-
-    if (!base) {
-        printf("[AimSilent] ERROR: base=0!\n");
-        fflush(stdout);
-        return;
-    }
-
-    uintptr_t addr9 = base + Offsets::Player_TakeDamage_9;
-    printf("[AimSilent] Hook9 addr=0x%lx\n", (unsigned long)addr9);
-    fflush(stdout);
-
-    // ── TEST WRITE ──
-    if (!TestWrite(addr9)) {
-        printf("[AimSilent] ERROR: mem_write GAGAL! Tidak bisa hook.\n");
-        fflush(stdout);
-        return;
-    }
-
-    // ── MANUAL HOOK ──
-    // Note: Requires an ARM64 inline trampoline hook.
-    // Verification pass for writable memory permissions.
-    // Installs execution trampoline when memory is writable.
-
-    printf("[AimSilent] mem_write OK! Bisa lanjut manual hook.\n");
-    fflush(stdout);
-
     g_AimSilentHookInstalled = true;
+    AS_LOG("Aim Engine initialized (kernel memory read/write mode)");
 }

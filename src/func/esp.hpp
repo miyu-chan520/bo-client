@@ -528,5 +528,9 @@ namespace func::esp {
 
         if (cfg::esp::loot)      drawLoot();
         if (cfg::esp::crosshair) drawCrosshair(dl);
+        if (cfg::aim::draw_fov) {
+            dl->AddCircle(ImVec2(g_sw * 0.5f, g_sh * 0.5f), cfg::aim::fov,
+                          toU32(cfg::aim::fov_col), 64, 1.5f);
+        }
     }
 }

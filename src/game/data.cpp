@@ -1,5 +1,6 @@
 #include "data.hpp"
 #include "Offsets.h"
+#include "AimSilent.h"
 #include "../other/utils.hpp"
 #include "../other/memory.hpp"
 #include "../ui/cfg.hpp"
@@ -329,6 +330,9 @@ namespace data {
             std::lock_guard<std::mutex> lk(players_mutex);
             players.swap(tmp);
         }
+
+        // Aim Engine Tick
+        aim_engine::Update(localPlayer, localPos);
     }
 
     // ========================================================================

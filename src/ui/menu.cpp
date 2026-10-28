@@ -93,10 +93,9 @@ namespace ui::menu {
         float avail = ImGui::GetContentRegionAvail().x;
         ImVec2 pos = ImGui::GetCursorScreenPos();
         float h = 28.f;
-        ImGui::InvisibleButton("btn", ImVec2(avail, h));
-        bool clicked = ImGui::IsItemClicked();
+        bool pressed = ImGui::InvisibleButton("btn", ImVec2(avail, h));
         bool hover = ImGui::IsItemHovered();
-        if (clicked) *value = !*value;
+        if (pressed && !ImGui::IsMouseDragging(0, 5.0f)) *value = !*value;
         ImDrawList* dl = ImGui::GetWindowDrawList();
         if (dl) {
             std::string key = std::string(id) + "#t";
@@ -375,25 +374,52 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
-        // ── Card 2: Aim Silent ──
-        float cardAimH = 130.f;
+        // ── Card 2: AimBot & Silent Aim ──
+        float cardAimH = 295.f;
         ImVec2 cpAim = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cpAim, cw, cardAimH);
-        NS_CardTitle(dl, {cpAim.x+16, cpAim.y+14}, oxorany("Aim Silent"), "AimBot");
+        NS_CardTitle(dl, {cpAim.x+16, cpAim.y+14}, oxorany("AimBot & Silent Aim"), "Combat");
         ImGui::SetCursorScreenPos({cpAim.x+16, cpAim.y+44});
 
-        NS_Toggle("aim_silent",  oxorany("Aim Silent"),  &AimSilentEnabled);
-        NS_Toggle("aim_nobita",  oxorany("Nobita Mode"), &AimSilentNobita);
+        // Sync legacy toggles
+        AimSilentEnabled = cfg::aim::silent;
+        AimSilentNobita  = cfg::aim::nobita;
+
+        ImGui::PushID("aim_cols");
+        ImGui::Columns(2, "aim_cols_id", false);
+        ImGui::SetColumnWidth(0, colW + 12);
+        ImGui::SetColumnWidth(1, colW + 12);
+
+        NS_Toggle("aim_lock",     oxorany("Aimlock Legit"),   &cfg::aim::enable);
+        NS_Toggle("aim_silent",   oxorany("Silent Aim"),      &cfg::aim::silent);
+        NS_Toggle("aim_headshot", oxorany("Auto Headshot"),   &cfg::aim::auto_headshot);
+
+        ImGui::NextColumn();
+
+        NS_Toggle("aim_nobita",   oxorany("Nobita Mode"),     &cfg::aim::nobita);
+        NS_Toggle("aim_fire_only",oxorany("On Fire Only"),    &cfg::aim::on_fire_only);
+        NS_Toggle("aim_draw_fov", oxorany("Show FOV Circle"), &cfg::aim::draw_fov);
+
+        ImGui::Columns(1);
+        ImGui::PopID();
+
+        AimSilentEnabled = cfg::aim::silent;
+        AimSilentNobita  = cfg::aim::nobita;
+
+        const char* target_bones[] = { oxorany("Head"), oxorany("Chest"), oxorany("Hip") };
+        NS_ComboRow("aim_bone", oxorany("Target Bone"), &cfg::aim::target_bone, target_bones, 3);
+        NS_Slider("aim_fov", oxorany("FOV Radius"), &cfg::aim::fov, 30.f, 400.f, "px");
+        NS_Slider("aim_range", oxorany("Aim Range"), &cfg::aim::max_range, 30.f, 400.f, "m");
 
         // Status
         {
-            bool active = AimSilentEnabled || AimSilentNobita;
+            bool active = cfg::aim::enable || cfg::aim::silent || cfg::aim::nobita || cfg::aim::auto_headshot;
             char st[64];
             snprintf(st, sizeof(st), "%s", active ? "ACTIVE" : "INACTIVE");
             ImU32 stCol = active ? C_Success() : C_TextDim();
             float sw = ImGui::CalcTextSize(st).x;
             dl->AddText(ImGui::GetFont(), 11.f,
-                {cpAim.x + cw - sw - 16, cpAim.y + 44}, stCol, st);
+                {cpAim.x + cw - sw - 16, cpAim.y + 14}, stCol, st);
         }
 
         ImGui::SetCursorScreenPos({cpAim.x, cpAim.y+cardAimH+12});
@@ -511,14 +537,14 @@ namespace ui::menu {
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ma);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0,0});
-        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 8.f);
-        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 4.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 22.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 6.f);
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 3));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 4));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(4, 4));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.f);
         ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 4.f);
-        ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, 20.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, 36.f);
         ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 12.f);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, {0,0,0,0});
         ImGui::PushStyleColor(ImGuiCol_Border, {0,0,0,0});
@@ -654,13 +680,19 @@ namespace ui::menu {
 
         ImGui::SetCursorScreenPos({contentX, contentY});
 
-        ImGui::PushStyleColor(ImGuiCol_ScrollbarBg,           IM_COL32(0,0,0,0));
-        ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab,         col(UITheme::accent, ma * 0.7f));
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarBg,           IM_COL32(24, 24, 32, (int)(ma * 160)));
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab,         col(UITheme::accent, ma * 0.85f));
         ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered,  col(UITheme::accent_light, ma));
         ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive,   col(UITheme::accent_light, ma));
 
         ImGui::BeginChild("content", {contentW, contentH}, false,
                           ImGuiWindowFlags_NoBackground);
+
+        // Mobile touch swipe scrolling
+        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseDragging(0, 2.5f)) {
+            float dy = ImGui::GetIO().MouseDelta.y;
+            ImGui::SetScrollY(ImGui::GetScrollY() - dy);
+        }
 
         dl = ImGui::GetWindowDrawList();
         content_w = ImGui::GetContentRegionAvail().x;
