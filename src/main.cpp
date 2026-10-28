@@ -15,6 +15,7 @@
 #include <thread>
 #include <chrono>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <sys/prctl.h>
 #include <android/log.h>

@@ -7,7 +7,7 @@
 #include "math.hpp"
 #include "data.hpp"
 #include "../ui/cfg.hpp"
-#include "styles/styles.h"
+#include "../ui/styles/styles.h"
 #include "imgui.h"
 #include <cstdint>
 #include <mutex>

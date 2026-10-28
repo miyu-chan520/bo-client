@@ -95,7 +95,8 @@ namespace ui::menu {
         float h = 28.f;
         bool pressed = ImGui::InvisibleButton("btn", ImVec2(avail, h));
         bool hover = ImGui::IsItemHovered();
-        if (pressed && !ImGui::IsMouseDragging(0, 5.0f)) *value = !*value;
+        bool clicked = pressed && !ImGui::IsMouseDragging(0, 5.0f);
+        if (clicked) *value = !*value;
         ImDrawList* dl = ImGui::GetWindowDrawList();
         if (dl) {
             std::string key = std::string(id) + "#t";
@@ -387,7 +388,7 @@ namespace ui::menu {
         NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Targeting & Bone Selection"), "Bone");
         ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
-        const char* target_bones[] = { oxorany("Aim Head"), oxorany("Aim Neck"), oxorany("Aim Body") };
+        const char* target_bones[] = { "Aim Head", "Aim Neck", "Aim Body" };
         NS_ComboRow("aim_bone", oxorany("Target Bone"), &cfg::aim::target_bone, target_bones, 3);
         NS_Toggle("aim_auto_drag", oxorany("Auto Drag Headshot"), &cfg::aim::auto_drag);
 
