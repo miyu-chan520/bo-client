@@ -213,20 +213,6 @@ inline int get_pid() {
         }
     }
     sys::close(pfd);
-    return found;
-}
-                        }
-                    }
-                    if (found > 0) break;
-                }
-            }
-
-            p += e->d_reclen;
-        }
-        if (found > 0) break;
-    }
-
-    sys::close(pfd);
     wipe(buf, sizeof(buf));
     return found;
 }
