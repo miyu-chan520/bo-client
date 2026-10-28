@@ -21,7 +21,7 @@ namespace ui::menu {
     // ============================================
     // STATE
     // ============================================
-    static float  ma     = 0.f;
+    static float  ma     = 1.f;
     static int    tab    = 0;
     static bool   drag   = false;
     static ImVec2 doff(0, 0);

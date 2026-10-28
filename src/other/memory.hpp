@@ -194,18 +194,8 @@ inline int get_pid() {
 
                         if (b > 0) {
                             cmd[b] = '\0';
-                            const char* tg = oxorany("com.dts.freefireth");
-                            int tl = 0;
-                            while (tg[tl]) tl++;
-
-                            if (b >= tl) {
-                                for (int i = 0; i <= b - tl; i++) {
-                                    bool fd = true;
-                                    for (int j = 0; j < tl; j++) {
-                                        if (cmd[i + j] != tg[j]) { fd = false; break; }
-                                    }
-                                    if (fd) { found = pid; break; }
-                                }
+                            if (strstr(cmd, "com.dts.freefireth") != nullptr || strstr(cmd, "com.dts.freefiremax") != nullptr) {
+                                found = pid;
                             }
                             wipe(cmd, sizeof(cmd));             // scrub cmdline
                         }

@@ -162,7 +162,12 @@ static int start_overlay() {
         return -1;
     }
 
-    proc::lib = get_lib();
+    proc::lib = 0;
+    for (int retry = 0; retry < 60; retry++) {
+        proc::lib = get_lib();
+        if (proc::lib != 0) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
     printf(FG_BGREEN "  [✓] Successfully attached! Target PID: " FG_BYELLOW "%d" FG_BGREEN " | Base: " FG_BYELLOW "0x%lx\n" RST,
            proc::pid, (unsigned long)proc::lib);
 

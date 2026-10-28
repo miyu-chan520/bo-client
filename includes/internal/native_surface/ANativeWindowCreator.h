@@ -444,10 +444,14 @@ namespace android {
                                                                                              layerMetadata, nullptr);
                 }
 
-                // Apply trusted overlay security flags when concealment is requested
-                if (12 <= Functionals::GetInstance().systemVersion && hide) {
-                    static SurfaceComposerClientTransaction transaction;
-                    transaction.SetTrustedOverlay(result, true);
+                // Always set topmost Z-order layer (0x7FFFFFFF) so overlay renders above all apps and games
+                if (Functionals::GetInstance().SurfaceComposerClient__Transaction__SetLayer) {
+                    SurfaceComposerClientTransaction transaction;
+                    transaction.SetLayer(result, 0x7FFFFFFF);
+                    if (12 <= Functionals::GetInstance().systemVersion && hide &&
+                        Functionals::GetInstance().SurfaceComposerClient__Transaction__SetTrustedOverlay) {
+                        transaction.SetTrustedOverlay(result, true);
+                    }
                     transaction.Apply(false, true);
                 }
 

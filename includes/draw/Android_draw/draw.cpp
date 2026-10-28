@@ -151,13 +151,17 @@ bool ImGui_init() {
 }
 
 void drawBegin() {
-    screen_config();
-    if (::orientation != displayInfo.orientation) {
-        ::orientation = displayInfo.orientation;
-        touch::update(displayInfo.width, displayInfo.height, displayInfo.orientation);
-        if (g_window) {
-            g_window->Pos.x = 100;
-            g_window->Pos.y = 125;
+    static int frame_counter = 0;
+    if (++frame_counter >= 60) {
+        frame_counter = 0;
+        screen_config();
+        if (::orientation != displayInfo.orientation) {
+            ::orientation = displayInfo.orientation;
+            touch::update(displayInfo.width, displayInfo.height, displayInfo.orientation);
+            if (g_window) {
+                g_window->Pos.x = 100;
+                g_window->Pos.y = 125;
+            }
         }
     }
 
@@ -168,6 +172,7 @@ void drawBegin() {
 
 void drawEnd() {
     ImGui::Render();
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     eglSwapBuffers(display, surface);

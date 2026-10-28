@@ -15,6 +15,21 @@ chmod 755 "$DAEMON" 2>/dev/null
 # Clean up stale PID file on boot
 rm -f "$PIDFILE"
 
+# Robust multi-method process identifier resolver
+get_app_pid() {
+    TARGET_PKG="$1"
+    P=$(pidof "$TARGET_PKG" 2>/dev/null)
+    if [ -n "$P" ]; then echo "$P"; return; fi
+    P=$(pgrep -f "$TARGET_PKG" 2>/dev/null | head -n 1)
+    if [ -n "$P" ]; then echo "$P"; return; fi
+    P=$(ps -ef 2>/dev/null | grep "$TARGET_PKG" | grep -v grep | head -n 1 | tr -s ' ' | cut -d ' ' -f 2)
+    if [ -n "$P" ]; then echo "$P"; return; fi
+    P=$(ps -A 2>/dev/null | grep "$TARGET_PKG" | grep -v grep | head -n 1 | tr -s ' ' | cut -d ' ' -f 2)
+    if [ -n "$P" ]; then echo "$P"; return; fi
+    P=$(ps 2>/dev/null | grep "$TARGET_PKG" | grep -v grep | head -n 1 | tr -s ' ' | cut -d ' ' -f 2)
+    if [ -n "$P" ]; then echo "$P"; return; fi
+}
+
 (
     # Wait until Android framework finishes booting completely
     while [ "$(getprop sys.boot_completed)" != "1" ]; do
@@ -30,9 +45,9 @@ rm -f "$PIDFILE"
     while true; do
         sleep 2
 
-        # Check for target game processes
-        PID_TH=$(pidof com.dts.freefireth 2>/dev/null)
-        PID_MAX=$(pidof com.dts.freefiremax 2>/dev/null)
+        # Check for target game processes using multiple fallbacks
+        PID_TH=$(get_app_pid "com.dts.freefireth")
+        PID_MAX=$(get_app_pid "com.dts.freefiremax")
 
         # Check if our own daemon is currently alive
         RUNNING=0
