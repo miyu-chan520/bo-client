@@ -426,7 +426,3 @@ struct Quaternion {
         return v + (t * w) + Vector3::Cross(qv, t);
     }
 };
-
-inline Vector3 operator*(const Quaternion& q, const Vector3& v) {
-    return q * v;
-}
