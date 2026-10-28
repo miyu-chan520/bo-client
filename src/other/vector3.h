@@ -418,4 +418,15 @@ struct Quaternion {
 
     inline Vector3 euler() const { return ToEuler(*this); }
     inline Quaternion normalized() const { return Normalize(*this); }
+    inline float sqrMagnitude() const { return x * x + y * y + z * z + w * w; }
+
+    inline Vector3 operator*(const Vector3& v) const {
+        Vector3 qv(x, y, z);
+        Vector3 t = Vector3::Cross(qv, v) * 2.0f;
+        return v + (t * w) + Vector3::Cross(qv, t);
+    }
 };
+
+inline Vector3 operator*(const Quaternion& q, const Vector3& v) {
+    return q * v;
+}
