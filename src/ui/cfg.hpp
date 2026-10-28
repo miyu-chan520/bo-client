@@ -5,7 +5,7 @@ namespace cfg {
 namespace esp {
     // ── Master ──
     inline bool  box          = true;
-    inline int   box_type     = 3;
+    inline int   box_type     = 0;
     inline bool  name         = true;
     inline bool  health       = true;
     inline bool  armor        = true;
@@ -34,18 +34,20 @@ namespace esp {
 }
 
 namespace aim {
-    // ── Master ──
-    inline bool  enable        = false;  // Aimlock / Legit Aimbot
-    inline bool  silent        = false;  // Silent Aim (Bullet Redirection)
-    inline bool  auto_headshot = false;  // Head Collider Injection
-    inline bool  nobita        = false;  // Nobita Mode (All Enemy Headshot + Pen)
-    inline bool  on_fire_only  = false;  // Trigger only when firing
-    inline bool  draw_fov      = false;  // Draw FOV Circle on Screen
+    // ── Master & Triggers ──
+    inline bool  enable        = false;  // Aimbot Master Toggle
+    inline bool  aim_lock      = true;   // Aim Lock (View Angle Lock)
+    inline bool  aim_visible   = true;   // Aim Visible Only
+    inline bool  aim_fire      = true;   // Aim Fire (Only when firing)
+    inline bool  aim_scope     = false;  // Aim Scope (Only when scoping/sighting)
+    inline bool  auto_drag     = true;   // Auto Drag Headshot: Body normally, Head on light drag
+    inline bool  no_recoil     = false;  // No Recoil (Safe memory zero)
+    inline bool  draw_fov      = true;   // Draw FOV Circle on Screen
 
     // ── Parameters ──
-    inline float fov           = 180.f;  // FOV radius in pixels
+    inline int   target_bone   = 0;      // 0: Auto Drag, 1: Head, 2: Neck, 3: Body
+    inline float fov           = 160.f;  // FOV radius in pixels
     inline float max_range     = 250.f;  // Aim range in meters
-    inline int   target_bone   = 0;      // 0: Head, 1: Chest, 2: Hip
-    inline ImVec4 fov_col      = ImVec4(1.0f, 1.0f, 1.0f, 0.35f);
+    inline ImVec4 fov_col      = ImVec4(1.0f, 0.35f, 0.35f, 0.45f);
 }
 }

@@ -156,6 +156,7 @@ inline int get_pid() {
 
     char buf[4096];
     int found = -1;
+    pid_t self_pid = getpid();
 
     while (true) {
         long nr = sys::getdents64(pfd, buf, sizeof(buf));
@@ -176,6 +177,11 @@ inline int get_pid() {
                     int pid = 0;
                     for (char* c = n; *c; c++) pid = pid * 10 + (*c - '0');
 
+                    if (pid == self_pid) {
+                        p += e->d_reclen;
+                        continue;
+                    }
+
                     char cp[256];
                     int ps = 0;
                     const char* ps_ = oxorany("/proc/");
@@ -194,10 +200,21 @@ inline int get_pid() {
 
                         if (b > 0) {
                             cmd[b] = '\0';
-                            if (strstr(cmd, "com.dts.freefireth") != nullptr || strstr(cmd, "com.dts.freefiremax") != nullptr) {
+                            // Match exact package name (Android cmdline separates argv by \0, first token is package)
+                            if (strcmp(cmd, "com.dts.freefireth") == 0 || strcmp(cmd, "com.dts.freefiremax") == 0) {
                                 found = pid;
                             }
                             wipe(cmd, sizeof(cmd));             // scrub cmdline
+                        }
+                    }
+                }
+            }
+            p += e->d_reclen;
+        }
+    }
+    sys::close(pfd);
+    return found;
+}
                         }
                     }
                     if (found > 0) break;

@@ -5,7 +5,7 @@
 #include "ui/menu.hpp"
 #include "other/memory.hpp"
 #include "game/data.hpp"
-#include "game/AimSilent.h"
+#include "game/aimbot.hpp"
 #include "game/Offsets.h"
 #include "func/esp.hpp"
 #include "globals.h"
@@ -87,21 +87,34 @@ static bool launch_target_silent() {
 }
 
 // ============================================================================
-// ATTACH OR LAUNCH TARGET
+// ATTACH TO TARGET PROCESS (PASSIVE WAIT — DO NOT AUTO-LAUNCH)
 // ============================================================================
 static int attach_or_launch() {
-    proc::pid = get_pid();
-    if (proc::pid > 0) {
-        LOGI("[+] Target already running, pid=%d", proc::pid);
-        return proc::pid;
-    }
-    LOGI("[+] Waiting for %s...", GetTargetPackage());
-    launch_target_silent();
-    for (int i = 0; i < 120; i++) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    while (true) {
         proc::pid = get_pid();
-        if (proc::pid > 0) {
-            LOGI("[+] Attached to target process, pid=%d", proc::pid);
+        if (proc::pid <= 0) {
+            LOGI("[+] Waiting for %s to start...", GetTargetPackage());
+            while (proc::pid <= 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                proc::pid = get_pid();
+            }
+        }
+
+        LOGI("[+] Detected process pid=%d. Waiting for libil2cpp.so to load...", proc::pid);
+        proc::lib = 0;
+        for (int retry = 0; retry < 120; retry++) {
+            if (kill(proc::pid, 0) != 0 || get_pid() <= 0) {
+                LOGI("[-] Process terminated before libraries loaded. Re-waiting...");
+                proc::pid = 0;
+                break;
+            }
+            proc::lib = get_lib();
+            if (proc::lib != 0) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+
+        if (proc::pid > 0 && proc::lib != 0) {
+            LOGI("[+] Attached to target process, pid=%d | libil2cpp=0x%lx", proc::pid, (unsigned long)proc::lib);
             return proc::pid;
         }
     }
@@ -157,17 +170,11 @@ static int start_overlay() {
     printf(FG_BBLUE "  [1/3] " RST FG_BWHITE "Attaching to " FG_BYELLOW "%s" FG_BWHITE "...\n" RST,
            GetTargetPackage());
 
-    if (attach_or_launch() <= 0) {
+    if (attach_or_launch() <= 0 || proc::lib == 0) {
         printf(FG_BRED "  [!] Failed to attach to target process!\n" RST);
         return -1;
     }
 
-    proc::lib = 0;
-    for (int retry = 0; retry < 60; retry++) {
-        proc::lib = get_lib();
-        if (proc::lib != 0) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
     printf(FG_BGREEN "  [✓] Successfully attached! Target PID: " FG_BYELLOW "%d" FG_BGREEN " | Base: " FG_BYELLOW "0x%lx\n" RST,
            proc::pid, (unsigned long)proc::lib);
 
@@ -175,9 +182,9 @@ static int start_overlay() {
     printf(FG_BBLUE "  [2/3] " RST FG_BWHITE "Initializing security bypass...\n" RST);
     init_bypass();
 
-    printf(FG_BBLUE "  [~] " RST FG_BWHITE "Installing memory hooks...\n" RST);
-    InitAimSilentHook();
-    printf(FG_BGREEN "  [✓] Hooks installed successfully\n" RST);
+    printf(FG_BBLUE "  [~] " RST FG_BWHITE "Initializing Aimbot Engine...\n" RST);
+    aimbot::Init();
+    printf(FG_BGREEN "  [✓] Aimbot engine ready\n" RST);
 
     // Step 3: Initialize Graphics & Screen Surface
     printf(FG_BBLUE "  [3/3] " RST FG_BWHITE "Initializing Graphical Surface...\n" RST);
@@ -225,7 +232,7 @@ static int start_overlay() {
             dbgCounter = 0;
 
             // Verify target process is still alive
-            if (kill(proc::pid, 0) != 0) {
+            if (kill(proc::pid, 0) != 0 || get_pid() <= 0) {
                 LOGI("[-] Target process terminated. Exiting overlay cleanly.");
                 printf(FG_BYELLOW "\n  [-] Target process exited. Cleaning up...\n" RST);
                 break;
@@ -240,7 +247,7 @@ static int start_overlay() {
             LOGI("[STATUS] inMatch=%d | activePlayers=%zu | aimEnabled=%d",
                  (int)data::inMatch.load(std::memory_order_relaxed),
                  nPlayers,
-                 (int)AimSilentEnabled);
+                 (int)cfg::aim::enable);
         }
     }
     return 0;

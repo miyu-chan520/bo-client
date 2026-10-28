@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include "func/esp.hpp"
 #include "cfg.hpp"
-#include "game/AimSilent.h"
+#include "game/aimbot.hpp"
 
 namespace ui::menu {
     using namespace style;
@@ -21,7 +21,7 @@ namespace ui::menu {
     // ============================================
     // STATE
     // ============================================
-    static float  ma     = 1.f;
+    static float  ma     = 0.f;
     static int    tab    = 0;
     static bool   drag   = false;
     static ImVec2 doff(0, 0);
@@ -334,7 +334,89 @@ namespace ui::menu {
     }
 
     // ============================================
-    // TAB 1: ESP
+    // TAB 1: AIMBOT (DEDICATED SECTION)
+    // ============================================
+    static void tab_aim(float a) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        float cw = ImGui::GetContentRegionAvail().x;
+        float colW = (cw - 32 - 24) * 0.5f;
+
+        // ── Card 1: Master & Triggers ──
+        float card1H = 175.f;
+        ImVec2 cp = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp, cw, card1H);
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Aimbot"), "Master");
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
+
+        ImGui::PushID("aim_cols_m");
+        ImGui::Columns(2, "aim_cols_id", false);
+        ImGui::SetColumnWidth(0, colW + 12);
+        ImGui::SetColumnWidth(1, colW + 12);
+
+        NS_Toggle("aim_enable",   oxorany("Aimbot"),           &cfg::aim::enable);
+        NS_Toggle("aim_lock",     oxorany("Aim Lock"),         &cfg::aim::aim_lock);
+        NS_Toggle("aim_vis",      oxorany("Aim Visible"),      &cfg::aim::aim_visible);
+
+        ImGui::NextColumn();
+
+        NS_Toggle("aim_fire",     oxorany("Aim Fire"),         &cfg::aim::aim_fire);
+        NS_Toggle("aim_scope",    oxorany("Aim Scope"),        &cfg::aim::aim_scope);
+        NS_Toggle("aim_recoil",   oxorany("No Recoil (Safe)"), &cfg::aim::no_recoil);
+
+        ImGui::Columns(1);
+        ImGui::PopID();
+
+        // Status pill
+        {
+            bool active = cfg::aim::enable;
+            char st[64];
+            snprintf(st, sizeof(st), "%s", active ? "ACTIVE" : "INACTIVE");
+            ImU32 stCol = active ? C_Success() : C_TextDim();
+            float sw = ImGui::CalcTextSize(st).x;
+            dl->AddText(ImGui::GetFont(), 11.f,
+                {cp.x + cw - sw - 16, cp.y + 14}, stCol, st);
+        }
+
+        ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
+        ImGui::Dummy({0,0});
+
+        // ── Card 2: Targeting & Auto Drag ──
+        float card2H = 160.f;
+        ImVec2 cp2 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp2, cw, card2H);
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Targeting & Bone Selection"), "Bone");
+        ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
+
+        const char* target_bones[] = { oxorany("Aim Head"), oxorany("Aim Neck"), oxorany("Aim Body") };
+        NS_ComboRow("aim_bone", oxorany("Target Bone"), &cfg::aim::target_bone, target_bones, 3);
+        NS_Toggle("aim_auto_drag", oxorany("Auto Drag Headshot"), &cfg::aim::auto_drag);
+
+        if (cfg::aim::auto_drag) {
+            dl->AddText(ImGui::GetFont(), 10.f,
+                {cp2.x+16, cp2.y+128}, C_AccentBright(),
+                oxorany("* When not dragging: only aim body | Light drag: hard aim to head"));
+        }
+
+        ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
+        ImGui::Dummy({0,0});
+
+        // ── Card 3: FOV & Range ──
+        float card3H = 180.f;
+        ImVec2 cp3 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp3, cw, card3H);
+        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Field Of View & Distance"), "Tuning");
+        ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+44});
+
+        NS_Toggle("aim_draw_fov", oxorany("Show FOV Circle"), &cfg::aim::draw_fov);
+        NS_Slider("aim_fov",      oxorany("FOV Radius"),      &cfg::aim::fov,       30.f, 400.f, "px");
+        NS_Slider("aim_range",    oxorany("Aim Range"),       &cfg::aim::max_range, 30.f, 400.f, "m");
+
+        ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
+        ImGui::Dummy({0, 40});
+    }
+
+    // ============================================
+    // TAB 2: ESP (DEDICATED SECTION)
     // ============================================
     static void tab_esp(float a) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -344,7 +426,7 @@ namespace ui::menu {
         float card1H = 240.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("ESP"), "Master");
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("ESP Visuals"), "Master");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
         ImGui::PushID("esp_cols");
@@ -374,58 +456,7 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
-        // ── Card 2: AimBot & Silent Aim ──
-        float cardAimH = 295.f;
-        ImVec2 cpAim = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cpAim, cw, cardAimH);
-        NS_CardTitle(dl, {cpAim.x+16, cpAim.y+14}, oxorany("AimBot & Silent Aim"), "Combat");
-        ImGui::SetCursorScreenPos({cpAim.x+16, cpAim.y+44});
-
-        // Sync legacy toggles
-        AimSilentEnabled = cfg::aim::silent;
-        AimSilentNobita  = cfg::aim::nobita;
-
-        ImGui::PushID("aim_cols");
-        ImGui::Columns(2, "aim_cols_id", false);
-        ImGui::SetColumnWidth(0, colW + 12);
-        ImGui::SetColumnWidth(1, colW + 12);
-
-        NS_Toggle("aim_lock",     oxorany("Aimlock Legit"),   &cfg::aim::enable);
-        NS_Toggle("aim_silent",   oxorany("Silent Aim"),      &cfg::aim::silent);
-        NS_Toggle("aim_headshot", oxorany("Auto Headshot"),   &cfg::aim::auto_headshot);
-
-        ImGui::NextColumn();
-
-        NS_Toggle("aim_nobita",   oxorany("Nobita Mode"),     &cfg::aim::nobita);
-        NS_Toggle("aim_fire_only",oxorany("On Fire Only"),    &cfg::aim::on_fire_only);
-        NS_Toggle("aim_draw_fov", oxorany("Show FOV Circle"), &cfg::aim::draw_fov);
-
-        ImGui::Columns(1);
-        ImGui::PopID();
-
-        AimSilentEnabled = cfg::aim::silent;
-        AimSilentNobita  = cfg::aim::nobita;
-
-        const char* target_bones[] = { oxorany("Head"), oxorany("Chest"), oxorany("Hip") };
-        NS_ComboRow("aim_bone", oxorany("Target Bone"), &cfg::aim::target_bone, target_bones, 3);
-        NS_Slider("aim_fov", oxorany("FOV Radius"), &cfg::aim::fov, 30.f, 400.f, "px");
-        NS_Slider("aim_range", oxorany("Aim Range"), &cfg::aim::max_range, 30.f, 400.f, "m");
-
-        // Status
-        {
-            bool active = cfg::aim::enable || cfg::aim::silent || cfg::aim::nobita || cfg::aim::auto_headshot;
-            char st[64];
-            snprintf(st, sizeof(st), "%s", active ? "ACTIVE" : "INACTIVE");
-            ImU32 stCol = active ? C_Success() : C_TextDim();
-            float sw = ImGui::CalcTextSize(st).x;
-            dl->AddText(ImGui::GetFont(), 11.f,
-                {cpAim.x + cw - sw - 16, cpAim.y + 14}, stCol, st);
-        }
-
-        ImGui::SetCursorScreenPos({cpAim.x, cpAim.y+cardAimH+12});
-        ImGui::Dummy({0,0});
-
-        // ── Card 3: Box Settings ──
+        // ── Card 2: Box Settings ──
         float card2H = 180.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
@@ -441,7 +472,7 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
         ImGui::Dummy({0,0});
 
-        // ── Card 4: Loot Settings ──
+        // ── Card 3: Loot Settings ──
         float card3H = 100.f;
         ImVec2 cp3 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp3, cw, card3H);
@@ -453,7 +484,7 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
         ImGui::Dummy({0,0});
 
-        // ── Card 5: Colors ──
+        // ── Card 4: Colors ──
         float card4H = 160.f;
         ImVec2 cp4 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp4, cw, card4H);
@@ -469,7 +500,7 @@ namespace ui::menu {
     }
 
     // ============================================
-    // TAB 2: SETTINGS
+    // TAB 3: SETTINGS
     // ============================================
     static void tab_settings(float a) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -522,10 +553,15 @@ namespace ui::menu {
     // MAIN RENDER
     // ============================================
     void render() {
+        float dt = ImGui::GetIO().DeltaTime;
+        aimbot::TickTimer(dt > 0.f ? dt : 0.016f);
+        if (ImGui::GetIO().MouseDown[0]) {
+            aimbot::NotifyTouch(true, ImGui::GetIO().MouseDelta.y);
+        }
+
         func::esp::draw();
         bar::render();
 
-        float dt = ImGui::GetIO().DeltaTime;
         ma = ma + ((bar::g_open ? 1.f : 0.f) - ma) * ImClamp(12.f*dt, 0.f, 1.f);
 
         if (ma > 0.01f) {
@@ -602,7 +638,7 @@ namespace ui::menu {
                     {logoX + logoSize + 100.f, wp.y+38.f},
                     col(UITheme::border, ma), 1.f);
 
-        const char* tabTitles[] = {"Dashboard", "ESP", "Settings"};
+        const char* tabTitles[] = {"Dashboard", "Aimbot", "ESP", "Settings"};
         bg->AddText(ImGui::GetFont(), 11.f,
             {logoX + logoSize + 116.f, wp.y + 24.f},
             col(UITheme::text_dim, ma), "/");
@@ -638,7 +674,7 @@ namespace ui::menu {
 
         float navStartY = sbY + 14.f;
         float navItemH = 36.f;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 4; i++) {
             float ny = navStartY + i * (navItemH + 2);
             bool act = (tab == i);
             bool hov = ImGui::IsMouseHoveringRect({wp.x, ny},
@@ -700,8 +736,9 @@ namespace ui::menu {
 
         switch (tab) {
             case 0: tab_dashboard(ma); break;
-            case 1: tab_esp(ma); break;
-            case 2: tab_settings(ma); break;
+            case 1: tab_aim(ma); break;
+            case 2: tab_esp(ma); break;
+            case 3: tab_settings(ma); break;
         }
 
         ImGui::EndChild();

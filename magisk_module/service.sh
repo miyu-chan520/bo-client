@@ -15,19 +15,22 @@ chmod 755 "$DAEMON" 2>/dev/null
 # Clean up stale PID file on boot
 rm -f "$PIDFILE"
 
-# Robust multi-method process identifier resolver
+# Robust multi-method process identifier resolver matching exact game process
 get_app_pid() {
     TARGET_PKG="$1"
     P=$(pidof "$TARGET_PKG" 2>/dev/null)
     if [ -n "$P" ]; then echo "$P"; return; fi
-    P=$(pgrep -f "$TARGET_PKG" 2>/dev/null | head -n 1)
+    P=$(pgrep -x "$TARGET_PKG" 2>/dev/null | head -n 1)
     if [ -n "$P" ]; then echo "$P"; return; fi
-    P=$(ps -ef 2>/dev/null | grep "$TARGET_PKG" | grep -v grep | head -n 1 | tr -s ' ' | cut -d ' ' -f 2)
-    if [ -n "$P" ]; then echo "$P"; return; fi
-    P=$(ps -A 2>/dev/null | grep "$TARGET_PKG" | grep -v grep | head -n 1 | tr -s ' ' | cut -d ' ' -f 2)
-    if [ -n "$P" ]; then echo "$P"; return; fi
-    P=$(ps 2>/dev/null | grep "$TARGET_PKG" | grep -v grep | head -n 1 | tr -s ' ' | cut -d ' ' -f 2)
-    if [ -n "$P" ]; then echo "$P"; return; fi
+    for cmd_file in /proc/[0-9]*/cmdline; do
+        if [ -f "$cmd_file" ]; then
+            c=$(tr '\0' '\n' < "$cmd_file" 2>/dev/null | head -n 1)
+            if [ "$c" = "$TARGET_PKG" ]; then
+                echo "$cmd_file" | tr -cd '[0-9]'
+                return
+            fi
+        fi
+    done
 }
 
 (
