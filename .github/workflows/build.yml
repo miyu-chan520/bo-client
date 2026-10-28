@@ -24,7 +24,12 @@ jobs:
       - name: Build arm64-v8a Binary
         run: |
           chmod +x jni/Android.mk
-          ndk-build -C . NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk NDK_APPLICATION_MK=jni/Application.mk -j$(nproc)
+          set -o pipefail
+          ndk-build -C . NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk NDK_APPLICATION_MK=jni/Application.mk -j$(nproc) 2>&1 | tee build.log || {
+            ERR_MSG=$(tail -n 30 build.log | tr '\n' ' ' | sed 's/%/%25/g' | sed 's/\r//g')
+            echo "::error::$ERR_MSG"
+            exit 1
+          }
 
       - name: Strip Debug Symbols
         run: |
