@@ -34,10 +34,12 @@ namespace Offsets {
     // ========================================================================
     // PLAYER — MAIN FIELDS
     // ========================================================================
+    constexpr uintptr_t Player_MainCameraTransform = 0x3E8;
     constexpr uintptr_t Player_Rotation          = 0x614;
     constexpr uintptr_t Player_HeadTF            = 0x6A0;
     constexpr uintptr_t Player_FootTF            = 0x6E8;
     constexpr uintptr_t Player_Camera            = 0x690;
+    constexpr uintptr_t Player_CallSetAimRotationCount = 0x810;
     constexpr uintptr_t Player_IsFiring          = 0x848;
     constexpr uintptr_t Player_HP                = 0x70;
     constexpr uintptr_t Player_Armor             = 0x74;
@@ -64,7 +66,12 @@ namespace Offsets {
     // ========================================================================
     // CAMERA CHAIN
     // ========================================================================
-    constexpr uintptr_t Camera_Follow            = 0x28;
+    constexpr uintptr_t Camera_Follow            = 0x30; // protected UnityEngine.Camera AFMGCAELKBD; // 0x30
+    constexpr uintptr_t Camera_Transform         = 0x40; // protected UnityEngine.Transform FFNHBHMNOAP; // 0x40
+    constexpr uintptr_t Camera_RightOffset       = 0x78; // public System.Single RightOffset; // 0x78
+    constexpr uintptr_t Camera_UpOffset          = 0x7C; // public System.Single UpOffset; // 0x7c
+    constexpr uintptr_t Camera_BackOffset        = 0x80; // public System.Single BackOffset; // 0x80
+    constexpr uintptr_t Camera_Rotation          = 0x150; // private UnityEngine.Quaternion HDGHBGGKHEA; // 0x150
     constexpr uintptr_t Camera_IntPtr            = 0x10;
     constexpr uintptr_t Camera_Matrix            = 0x100;
 
@@ -80,6 +87,7 @@ namespace Offsets {
     // ========================================================================
     constexpr uintptr_t Player_Weapon            = 0x600;
     constexpr uintptr_t Weapon_Data              = 0x80;
+    constexpr uintptr_t Weapon_ProfileData       = 0x4A0; // protected COW.WeaponGunFeelProfileData AFLGAPPILEH; // 0x4a0
     constexpr uintptr_t Weapon_Recoil            = 0x18;
 
     // ========================================================================

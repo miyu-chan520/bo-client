@@ -31,6 +31,18 @@ namespace ui::menu {
     static constexpr float Rt = 6.f;
 
     // ============================================
+    // TYPOGRAPHY (SCALED FOR MOBILE / HIGH-DPI)
+    // ============================================
+    static constexpr float FONT_TITLE   = 16.f;
+    static constexpr float FONT_MAIN    = 15.f;
+    static constexpr float FONT_SEC     = 13.f;
+    static constexpr float FONT_HINT    = 12.f;
+
+    // Toast status for Save/Load/Reset operations
+    static std::string s_saveStatus;
+    static float s_saveStatusTimer = 0.f;
+
+    // ============================================
     // ANIMATION
     // ============================================
     static std::unordered_map<std::string, float> g_nsAnim;
@@ -78,12 +90,12 @@ namespace ui::menu {
     }
 
     static void NS_CardTitle(ImDrawList* dl, ImVec2 pos, const char* title, const char* hint = nullptr) {
-        dl->AddRectFilled({pos.x, pos.y+2}, {pos.x+3, pos.y+12}, C_Accent(), 2.f);
-        dl->AddText(ImGui::GetFont(), 11.f, {pos.x+10, pos.y}, C_TextSec(), title);
+        dl->AddRectFilled({pos.x, pos.y+2}, {pos.x+3, pos.y+16}, C_Accent(), 2.f);
+        dl->AddText(ImGui::GetFont(), FONT_TITLE, {pos.x+10, pos.y}, C_TextSec(), title);
         if (hint) {
             float hw = ImGui::CalcTextSize(hint).x;
-            dl->AddText(ImGui::GetFont(), 10.f,
-                {pos.x + ImGui::GetContentRegionAvail().x - hw, pos.y+1},
+            dl->AddText(ImGui::GetFont(), FONT_SEC,
+                {pos.x + ImGui::GetContentRegionAvail().x - hw, pos.y+2},
                 C_TextDim(), hint);
         }
     }
@@ -92,7 +104,7 @@ namespace ui::menu {
         ImGui::PushID(id);
         float avail = ImGui::GetContentRegionAvail().x;
         ImVec2 pos = ImGui::GetCursorScreenPos();
-        float h = 28.f;
+        float h = 34.f;
         bool pressed = ImGui::InvisibleButton("btn", ImVec2(avail, h));
         bool hover = ImGui::IsItemHovered();
         bool clicked = pressed && !ImGui::IsMouseDragging(0, 5.0f);
@@ -104,9 +116,9 @@ namespace ui::menu {
             float hov = NS_Anim(key+"hov", hover ? 1.f : 0.f, 18.f);
             float lh = ImGui::CalcTextSize(label).y;
             ImU32 lblCol = NS_Lerp(C_TextSec(), C_TextMain(), ImMax(on, hov*0.5f));
-            dl->AddText(ImGui::GetFont(), 12.f,
+            dl->AddText(ImGui::GetFont(), FONT_MAIN,
                 {pos.x, pos.y+(h-lh)*0.5f}, lblCol, label);
-            float tw = 34.f, th = 18.f;
+            float tw = 40.f, th = 22.f;
             float tx = pos.x + avail - tw, ty = pos.y + (h - th) * 0.5f;
             dl->AddRectFilled({tx, ty}, {tx+tw, ty+th},
                 NS_Lerp(IM_COL32(42,42,50,(int)(content_alpha*255)), C_Accent(), on), th*0.5f);
@@ -115,8 +127,8 @@ namespace ui::menu {
                     (C_Accent() & 0x00FFFFFF) | ((ImU32)(80*on) << 24),
                     th*0.5f, 0, 1.f);
             }
-            float knobR = th*0.5f - 2.f;
-            float knobX = tx + 2.f + (tw - th) * on;
+            float knobR = th*0.5f - 2.5f;
+            float knobX = tx + 2.5f + (tw - th) * on;
             dl->AddCircleFilled({knobX+knobR, ty+th*0.5f}, knobR,
                 on > 0.5f ? IM_COL32(255,255,255,255) : IM_COL32(200,200,210,255));
         }
@@ -131,32 +143,32 @@ namespace ui::menu {
         ImVec2 pos = ImGui::GetCursorScreenPos();
         ImDrawList* dl = ImGui::GetWindowDrawList();
         if (dl) {
-            char valStr[32]; snprintf(valStr, sizeof(valStr), "%.1f%s", *value, suffix);
-            float valW = ImGui::CalcTextSize(valStr).x + 16.f;
-            dl->AddText(ImGui::GetFont(), 12.f, {pos.x, pos.y+2}, C_TextSec(), label);
+            char valStr[32]; snprintf(valStr, sizeof(valStr), "%.2f%s", *value, suffix);
+            float valW = ImGui::CalcTextSize(valStr).x + 18.f;
+            dl->AddText(ImGui::GetFont(), FONT_MAIN, {pos.x, pos.y+2}, C_TextSec(), label);
             float vx = pos.x + avail - valW;
-            dl->AddRectFilled({vx, pos.y}, {vx+valW, pos.y+20}, C_BgDark(), 4.f);
-            dl->AddRect({vx, pos.y}, {vx+valW, pos.y+20}, C_Border(), 4.f, 0, 1.f);
-            dl->AddText(ImGui::GetFont(), 11.f,
-                {vx + 8, pos.y + 3}, C_TextMain(), valStr);
+            dl->AddRectFilled({vx, pos.y}, {vx+valW, pos.y+22}, C_BgDark(), 4.f);
+            dl->AddRect({vx, pos.y}, {vx+valW, pos.y+22}, C_Border(), 4.f, 0, 1.f);
+            dl->AddText(ImGui::GetFont(), FONT_SEC,
+                {vx + 8, pos.y + 4}, C_TextMain(), valStr);
 
-            float ty = pos.y + 28.f, tw2 = avail;
+            float ty = pos.y + 30.f, tw2 = avail;
             float rawPct = (maxV > minV) ? ImClamp((*value-minV)/(maxV-minV),0.f,1.f) : 0.f;
             float pct = NS_Anim(std::string(id)+"#pct", rawPct, 22.f);
-            dl->AddRectFilled({pos.x, ty}, {pos.x+tw2, ty+3},
+            dl->AddRectFilled({pos.x, ty}, {pos.x+tw2, ty+4},
                 IM_COL32(42,42,50,(int)(content_alpha*255)), 2.f);
-            dl->AddRectFilled({pos.x, ty}, {pos.x+tw2*pct, ty+3}, C_Accent(), 2.f);
+            dl->AddRectFilled({pos.x, ty}, {pos.x+tw2*pct, ty+4}, C_Accent(), 2.f);
             if (pct > 0.01f) {
-                dl->AddRect({pos.x, ty}, {pos.x+tw2*pct, ty+3},
+                dl->AddRect({pos.x, ty}, {pos.x+tw2*pct, ty+4},
                     (C_Accent() & 0x00FFFFFF) | ((ImU32)90 << 24), 2.f, 0, 1.f);
             }
-            dl->AddCircleFilled({pos.x+tw2*pct, ty+1.5f}, 6.f, IM_COL32(255,255,255,255));
-            dl->AddCircle({pos.x+tw2*pct, ty+1.5f}, 6.f, C_Accent(), 16, 1.5f);
+            dl->AddCircleFilled({pos.x+tw2*pct, ty+2.f}, 7.f, IM_COL32(255,255,255,255));
+            dl->AddCircle({pos.x+tw2*pct, ty+2.f}, 7.f, C_Accent(), 16, 1.5f);
             ImGui::SetCursorScreenPos({pos.x, ty-6});
             ImGui::SetNextItemWidth(tw2);
         }
         bool changed = ImGui::SliderFloat("##s", value, minV, maxV, "");
-        ImGui::Dummy(ImVec2(0, 10));
+        ImGui::Dummy(ImVec2(0, 12));
         ImGui::PopID();
         return changed;
     }
@@ -172,16 +184,18 @@ namespace ui::menu {
             ImVec2 a = pos, b = {pos.x+size.x, pos.y+size.y};
             ImU32 bg = accent ? NS_Lerp(C_Accent(), C_AccentBright(), hov)
                               : NS_Lerp(C_BgCard(), C_BgCardHov(), hov);
-            dl->AddRectFilled(a, b, bg, 5.f);
+            dl->AddRectFilled(a, b, bg, 6.f);
             if (accent && hov > 0.1f) {
                 dl->AddRect(a, b, (C_AccentBright() & 0x00FFFFFF) | ((ImU32)(120*hov) << 24),
-                            5.f, 0, 1.f);
+                            6.f, 0, 1.f);
             }
             if (!accent) {
-                dl->AddRect(a, b, C_Border(), 5.f, 0, 1.f);
+                dl->AddRect(a, b, C_Border(), 6.f, 0, 1.f);
             }
             float lw = ImGui::CalcTextSize(label).x;
-            dl->AddText({pos.x + (size.x-lw)*0.5f, pos.y + size.y*0.5f - 7},
+            float lh = ImGui::CalcTextSize(label).y;
+            dl->AddText(ImGui::GetFont(), FONT_MAIN,
+                {pos.x + (size.x-lw)*0.5f, pos.y + (size.y-lh)*0.5f},
                 accent ? IM_COL32(255,255,255,255) : C_TextMain(), label);
         }
         ImGui::SetCursorScreenPos(pos);
@@ -196,17 +210,17 @@ namespace ui::menu {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         ImVec2 pos = ImGui::GetCursorScreenPos();
         float avail = ImGui::GetContentRegionAvail().x;
-        float rh = 28.f;
+        float rh = 32.f;
         bool hov = ImGui::IsMouseHoveringRect(pos, {pos.x+avail, pos.y+rh});
         if (dl) {
             if (hov) {
                 dl->AddRectFilled({pos.x, pos.y}, {pos.x+avail, pos.y+rh}, C_BgCardHov(), 4.f);
                 dl->AddRectFilled({pos.x, pos.y+6}, {pos.x+2, pos.y+rh-6}, C_Accent(), 1.f);
             }
-            dl->AddText(ImGui::GetFont(), 12.f, {pos.x+10, pos.y+7}, C_TextDim(), label);
+            dl->AddText(ImGui::GetFont(), FONT_MAIN, {pos.x+10, pos.y+7}, C_TextDim(), label);
             float vw = ImGui::CalcTextSize(value).x;
             ImU32 fc = valueColor ? valueColor : C_TextMain();
-            dl->AddText(ImGui::GetFont(), 12.f, {pos.x+avail-vw-10, pos.y+7}, fc, value);
+            dl->AddText(ImGui::GetFont(), FONT_MAIN, {pos.x+avail-vw-10, pos.y+7}, fc, value);
         }
         ImGui::Dummy(ImVec2(0, rh+2));
     }
@@ -216,19 +230,19 @@ namespace ui::menu {
         ImGui::PushID(id);
         float avail = ImGui::GetContentRegionAvail().x;
         ImVec2 pos = ImGui::GetCursorScreenPos();
-        float h = 34.f;
+        float h = 38.f;
         ImDrawList* dl = ImGui::GetWindowDrawList();
         if (dl) {
-            dl->AddRectFilled(pos, {pos.x+avail, pos.y+h}, C_BgDark(), 5.f);
-            dl->AddRect(pos, {pos.x+avail, pos.y+h}, C_Border(), 5.f, 0, 1.f);
-            dl->AddText(ImGui::GetFont(), 12.f, {pos.x+12, pos.y+10}, C_TextDim(), label);
+            dl->AddRectFilled(pos, {pos.x+avail, pos.y+h}, C_BgDark(), 6.f);
+            dl->AddRect(pos, {pos.x+avail, pos.y+h}, C_Border(), 6.f, 0, 1.f);
+            dl->AddText(ImGui::GetFont(), FONT_MAIN, {pos.x+12, pos.y+10}, C_TextDim(), label);
             int cur = *value;
             const char* curText = (cur>=0 && cur<itemCount) ? items[cur] : "?";
             float cw = ImGui::CalcTextSize(curText).x;
-            dl->AddText(ImGui::GetFont(), 12.f,
-                {pos.x+avail-cw-30, pos.y+10}, C_TextMain(), curText);
-            dl->AddText(ImGui::GetFont(), 9.f,
-                {pos.x+avail-18, pos.y+13}, C_TextDim(), "\u25BC");
+            dl->AddText(ImGui::GetFont(), FONT_MAIN,
+                {pos.x+avail-cw-32, pos.y+10}, C_TextMain(), curText);
+            dl->AddText(ImGui::GetFont(), FONT_SEC,
+                {pos.x+avail-20, pos.y+11}, C_TextDim(), "\u25BC");
         }
         ImGui::PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(0,0,0,0));
         ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(0,0,0,0));
@@ -253,9 +267,9 @@ namespace ui::menu {
         ImVec2 pos = ImGui::GetCursorScreenPos();
         ImDrawList* dl = ImGui::GetWindowDrawList();
         if (dl) {
-            dl->AddText(ImGui::GetFont(), 12.f, {pos.x, pos.y+8}, C_TextSec(), label);
+            dl->AddText(ImGui::GetFont(), FONT_MAIN, {pos.x, pos.y+8}, C_TextSec(), label);
             ImU32 colU32 = ImGui::ColorConvertFloat4ToU32(*color);
-            float sw = 24.f;
+            float sw = 26.f;
             ImVec2 sp = {pos.x + avail - sw - 8.f, pos.y + 4.f};
             dl->AddRectFilled(sp, {sp.x+sw, sp.y+sw}, colU32, 4.f);
             dl->AddRect(sp, {sp.x+sw, sp.y+sw}, C_Border(), 4.f, 0, 1.f);
@@ -275,7 +289,7 @@ namespace ui::menu {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         float cw = ImGui::GetContentRegionAvail().x;
 
-        float card1H = 170.f;
+        float card1H = 190.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
         NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Information"), "Info");
@@ -291,7 +305,7 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
-        float card2H = 100.f;
+        float card2H = 110.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
         NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Live Stats"));
@@ -300,34 +314,34 @@ namespace ui::menu {
         char fpsT[16]; snprintf(fpsT, sizeof(fpsT), "%.0f", ImGui::GetIO().Framerate);
         ImU32 fc = ImGui::GetIO().Framerate > 55 ? C_Success()
                  : (ImGui::GetIO().Framerate > 30 ? IM_COL32(255,180,40,(int)(content_alpha*255)) : C_Danger());
-        dl->AddText(ImGui::GetFont(), 28.f, {cp2.x+20, cp2.y+48}, fc, fpsT);
-        dl->AddText(ImGui::GetFont(), 11.f,
-            {cp2.x+22+ImGui::CalcTextSize(fpsT).x * 28.f / ImGui::GetFontSize(), cp2.y+64},
+        dl->AddText(ImGui::GetFont(), 30.f, {cp2.x+20, cp2.y+50}, fc, fpsT);
+        dl->AddText(ImGui::GetFont(), FONT_SEC,
+            {cp2.x+24+ImGui::CalcTextSize(fpsT).x * 30.f / ImGui::GetFontSize(), cp2.y+66},
             C_TextDim(), "FPS");
 
         char scr[32];
         snprintf(scr, sizeof(scr), "%.0f x %.0f", g_sw, g_sh);
         float sx = cp2.x + cw*0.5f;
-        dl->AddText(ImGui::GetFont(), 10.f, {sx, cp2.y+52}, C_TextDim(), "SCREEN");
-        dl->AddText(ImGui::GetFont(), 13.f, {sx, cp2.y+68}, C_TextMain(), scr);
+        dl->AddText(ImGui::GetFont(), FONT_SEC, {sx, cp2.y+52}, C_TextDim(), "SCREEN");
+        dl->AddText(ImGui::GetFont(), FONT_MAIN, {sx, cp2.y+70}, C_TextMain(), scr);
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
         ImGui::Dummy({0,0});
 
-        float card3H = 56.f;
+        float card3H = 65.f;
         ImVec2 cp3 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp3, cw, card3H);
         NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Match Status"));
         bool inM = data::inMatch.load();
         ImU32 mCol = inM ? C_Success() : C_TextDim();
-        dl->AddText(ImGui::GetFont(), 13.f,
-            {cp3.x+16, cp3.y+40}, mCol,
+        dl->AddText(ImGui::GetFont(), FONT_MAIN,
+            {cp3.x+16, cp3.y+42}, mCol,
             inM ? "In Match" : "Not in Match");
 
         char pbuf[32];
         snprintf(pbuf, sizeof(pbuf), "%zu players", data::players.size());
         float pw = ImGui::CalcTextSize(pbuf).x;
-        dl->AddText(ImGui::GetFont(), 11.f,
+        dl->AddText(ImGui::GetFont(), FONT_SEC,
             {cp3.x+cw-pw-16, cp3.y+42}, C_TextSec(), pbuf);
 
         ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
@@ -343,10 +357,10 @@ namespace ui::menu {
         float colW = (cw - 32 - 24) * 0.5f;
 
         // ── Card 1: Master & Triggers ──
-        float card1H = 175.f;
+        float card1H = 210.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Aimbot"), "Master");
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Aimbot & Aim Lock"), "Master");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
         ImGui::PushID("aim_cols_m");
@@ -354,7 +368,7 @@ namespace ui::menu {
         ImGui::SetColumnWidth(0, colW + 12);
         ImGui::SetColumnWidth(1, colW + 12);
 
-        NS_Toggle("aim_enable",   oxorany("Aimbot"),           &cfg::aim::enable);
+        NS_Toggle("aim_enable",   oxorany("Aimbot Master"),    &cfg::aim::enable);
         NS_Toggle("aim_lock",     oxorany("Aim Lock"),         &cfg::aim::aim_lock);
         NS_Toggle("aim_vis",      oxorany("Aim Visible"),      &cfg::aim::aim_visible);
 
@@ -362,7 +376,7 @@ namespace ui::menu {
 
         NS_Toggle("aim_fire",     oxorany("Aim Fire"),         &cfg::aim::aim_fire);
         NS_Toggle("aim_scope",    oxorany("Aim Scope"),        &cfg::aim::aim_scope);
-        NS_Toggle("aim_recoil",   oxorany("No Recoil (Safe)"), &cfg::aim::no_recoil);
+        NS_Toggle("aim_recoil",   oxorany("No Recoil"),        &cfg::aim::no_recoil);
 
         ImGui::Columns(1);
         ImGui::PopID();
@@ -374,15 +388,19 @@ namespace ui::menu {
             snprintf(st, sizeof(st), "%s", active ? "ACTIVE" : "INACTIVE");
             ImU32 stCol = active ? C_Success() : C_TextDim();
             float sw = ImGui::CalcTextSize(st).x;
-            dl->AddText(ImGui::GetFont(), 11.f,
+            dl->AddText(ImGui::GetFont(), FONT_MAIN,
                 {cp.x + cw - sw - 16, cp.y + 14}, stCol, st);
         }
+
+        dl->AddText(ImGui::GetFont(), FONT_HINT,
+            {cp.x+16, cp.y+180}, C_TextDim(),
+            oxorany("* Aim Lock engages aim assistance when crosshair is moved over designated target."));
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
         // ── Card 2: Targeting & Auto Drag ──
-        float card2H = 160.f;
+        float card2H = 180.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
         NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Targeting & Bone Selection"), "Bone");
@@ -393,24 +411,25 @@ namespace ui::menu {
         NS_Toggle("aim_auto_drag", oxorany("Auto Drag Headshot"), &cfg::aim::auto_drag);
 
         if (cfg::aim::auto_drag) {
-            dl->AddText(ImGui::GetFont(), 10.f,
-                {cp2.x+16, cp2.y+128}, C_AccentBright(),
-                oxorany("* When not dragging: only aim body | Light drag: hard aim to head"));
+            dl->AddText(ImGui::GetFont(), FONT_SEC,
+                {cp2.x+16, cp2.y+138}, C_AccentBright(),
+                oxorany("* Body aim normal | Light upward swipe locks to Head"));
         }
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
         ImGui::Dummy({0,0});
 
-        // ── Card 3: FOV & Range ──
-        float card3H = 180.f;
+        // ── Card 3: FOV & Smoothness Tuning ──
+        float card3H = 240.f;
         ImVec2 cp3 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp3, cw, card3H);
-        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Field Of View & Distance"), "Tuning");
+        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Field Of View & Smoothness"), "Tuning");
         ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+44});
 
         NS_Toggle("aim_draw_fov", oxorany("Show FOV Circle"), &cfg::aim::draw_fov);
-        NS_Slider("aim_fov",      oxorany("FOV Radius"),      &cfg::aim::fov,       30.f, 400.f, "px");
-        NS_Slider("aim_range",    oxorany("Aim Range"),       &cfg::aim::max_range, 30.f, 400.f, "m");
+        NS_Slider("aim_fov",      oxorany("FOV Radius"),      &cfg::aim::fov,        30.f, 400.f, "px");
+        NS_Slider("aim_range",    oxorany("Aim Range"),       &cfg::aim::max_range,  30.f, 400.f, "m");
+        NS_Slider("aim_smooth",   oxorany("Aim Smoothness"),  &cfg::aim::aim_smooth, 0.05f, 0.85f, "");
 
         ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
         ImGui::Dummy({0, 40});
@@ -424,7 +443,7 @@ namespace ui::menu {
         float cw = ImGui::GetContentRegionAvail().x;
 
         float colW = (cw - 32 - 24) * 0.5f;
-        float card1H = 240.f;
+        float card1H = 300.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
         NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("ESP Visuals"), "Master");
@@ -458,7 +477,7 @@ namespace ui::menu {
         ImGui::Dummy({0,0});
 
         // ── Card 2: Box Settings ──
-        float card2H = 180.f;
+        float card2H = 220.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
         NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Box Settings"));
@@ -474,7 +493,7 @@ namespace ui::menu {
         ImGui::Dummy({0,0});
 
         // ── Card 3: Loot Settings ──
-        float card3H = 100.f;
+        float card3H = 110.f;
         ImVec2 cp3 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp3, cw, card3H);
         NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Loot Settings"));
@@ -486,7 +505,7 @@ namespace ui::menu {
         ImGui::Dummy({0,0});
 
         // ── Card 4: Colors ──
-        float card4H = 160.f;
+        float card4H = 200.f;
         ImVec2 cp4 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp4, cw, card4H);
         NS_CardTitle(dl, {cp4.x+16, cp4.y+14}, oxorany("Colors"));
@@ -507,7 +526,8 @@ namespace ui::menu {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         float cw = ImGui::GetContentRegionAvail().x;
 
-        float card1H = 110.f;
+        // ── Card 1: Display ──
+        float card1H = 120.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
         NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Display"));
@@ -522,7 +542,8 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
-        float card2H = 120.f;
+        // ── Card 2: System ──
+        float card2H = 130.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
         NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("System"));
@@ -536,17 +557,54 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
         ImGui::Dummy({0,0});
 
-        float card3H = 96.f;
+        // ── Card 3: Configuration Management (Save/Load/Reset Clarification) ──
+        float card3H = 180.f;
         ImVec2 cp3 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp3, cw, card3H);
-        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Actions"));
-        ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+44});
+        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Configuration Management"), "Storage");
+        ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+42});
 
-        if (NS_Button("unload", oxorany("Unload"), {cw-32, 32}, true)) {
-            exit(0);
+        dl->AddText(ImGui::GetFont(), FONT_SEC, {cp3.x+16, cp3.y+44}, C_TextMain(),
+            oxorany("• Save: Writes all ESP, Aim Lock, FOV & Tuning to /data/local/tmp/.bo_client.cfg"));
+        dl->AddText(ImGui::GetFont(), FONT_SEC, {cp3.x+16, cp3.y+66}, C_TextDim(),
+            oxorany("• Load: Restores your saved configuration from device storage."));
+        dl->AddText(ImGui::GetFont(), FONT_SEC, {cp3.x+16, cp3.y+88}, C_TextDim(),
+            oxorany("• Reset: Reverts all options back to clean defaults."));
+
+        ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+120});
+        if (NS_Button("set_save", oxorany("Save Config"), {110, 34}, true)) {
+            bool ok = cfg::save();
+            s_saveStatus = ok ? "Config saved successfully!" : "Failed to write config!";
+            s_saveStatusTimer = 3.5f;
+        }
+        ImGui::SameLine(0, 10);
+        if (NS_Button("set_load", oxorany("Load Config"), {110, 34}, false)) {
+            bool ok = cfg::load();
+            s_saveStatus = ok ? "Config loaded from disk!" : "No config file found!";
+            s_saveStatusTimer = 3.5f;
+        }
+        ImGui::SameLine(0, 10);
+        if (NS_Button("set_reset", oxorany("Reset Defaults"), {110, 34}, false)) {
+            cfg::reset_defaults();
+            s_saveStatus = "Settings reset to defaults!";
+            s_saveStatusTimer = 3.5f;
         }
 
         ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
+        ImGui::Dummy({0,0});
+
+        // ── Card 4: Actions ──
+        float card4H = 96.f;
+        ImVec2 cp4 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp4, cw, card4H);
+        NS_CardTitle(dl, {cp4.x+16, cp4.y+14}, oxorany("Actions"));
+        ImGui::SetCursorScreenPos({cp4.x+16, cp4.y+44});
+
+        if (NS_Button("unload", oxorany("Unload Service"), {cw-32, 34}, true)) {
+            exit(0);
+        }
+
+        ImGui::SetCursorScreenPos({cp4.x, cp4.y+card4H+12});
         ImGui::Dummy({0, 40});
     }
 
@@ -586,7 +644,7 @@ namespace ui::menu {
         ImGui::PushStyleColor(ImGuiCol_WindowBg, {0,0,0,0});
         ImGui::PushStyleColor(ImGuiCol_Border, {0,0,0,0});
 
-        ImVec2 wsz(960.f, 620.f);
+        ImVec2 wsz(980.f, 650.f);
         if (g_menu_pos.x < 0.f) {
             g_menu_pos = {(g_sw - wsz.x) * 0.5f, (g_sh - wsz.y) * 0.5f};
         }
@@ -612,16 +670,16 @@ namespace ui::menu {
         bg->AddRectFilled(wp, {wp.x+ws.x, wp.y+ws.y}, col(UITheme::bg, ma), R);
         bg->AddRect(wp, {wp.x+ws.x, wp.y+ws.y}, col(UITheme::border, ma), R);
 
-        const float headerH = 56.f;
-        const float sidebarW = 130.f;
-        const float footerH = 44.f;
+        const float headerH = 60.f;
+        const float sidebarW = 150.f;
+        const float footerH = 50.f;
 
         bg->AddRectFilled(wp, {wp.x+ws.x, wp.y+headerH},
                           col(UITheme::sidebar, ma), R, ImDrawFlags_RoundCornersTop);
         bg->AddLine({wp.x, wp.y+headerH}, {wp.x+ws.x, wp.y+headerH},
                     col(UITheme::border, ma), 1.f);
 
-        float logoSize = 30.f;
+        float logoSize = 34.f;
         float logoX = wp.x + 18.f;
         float logoY = wp.y + (headerH - logoSize) * 0.5f;
         bg->AddRectFilled({logoX, logoY}, {logoX+logoSize, logoY+logoSize},
@@ -630,24 +688,24 @@ namespace ui::menu {
         bg->AddText({logoX + (logoSize-ls.x)*0.5f, logoY + (logoSize-ls.y)*0.5f},
                     IM_COL32(255,255,255,255), "N");
 
-        dl->AddText(ImGui::GetFont(), 14.f, {logoX + logoSize + 12.f, wp.y + 14.f},
+        dl->AddText(ImGui::GetFont(), FONT_TITLE + 1.f, {logoX + logoSize + 14.f, wp.y + 12.f},
                     col(UITheme::text, ma), "BO CLIENT");
-        dl->AddText(ImGui::GetFont(), 9.f, {logoX + logoSize + 12.f, wp.y + 32.f},
+        dl->AddText(ImGui::GetFont(), FONT_HINT, {logoX + logoSize + 14.f, wp.y + 34.f},
                     col(UITheme::text_dim, ma), "FREE FIRE");
 
-        bg->AddLine({logoX + logoSize + 100.f, wp.y+18.f},
-                    {logoX + logoSize + 100.f, wp.y+38.f},
+        bg->AddLine({logoX + logoSize + 115.f, wp.y+18.f},
+                    {logoX + logoSize + 115.f, wp.y+42.f},
                     col(UITheme::border, ma), 1.f);
 
         const char* tabTitles[] = {"Dashboard", "Aimbot", "ESP", "Settings"};
-        bg->AddText(ImGui::GetFont(), 11.f,
-            {logoX + logoSize + 116.f, wp.y + 24.f},
+        bg->AddText(ImGui::GetFont(), FONT_SEC,
+            {logoX + logoSize + 130.f, wp.y + 24.f},
             col(UITheme::text_dim, ma), "/");
-        bg->AddText(ImGui::GetFont(), 13.f,
-            {logoX + logoSize + 128.f, wp.y + 21.f},
+        bg->AddText(ImGui::GetFont(), FONT_TITLE,
+            {logoX + logoSize + 144.f, wp.y + 22.f},
             col(UITheme::text, ma), tabTitles[tab]);
 
-        float closeW = 28.f;
+        float closeW = 32.f;
         float closeX = wp.x + ws.x - closeW - 14.f;
         float closeY = wp.y + (headerH - closeW) * 0.5f;
         bool hoverClose = ImGui::IsMouseHoveringRect({closeX, closeY},
@@ -655,11 +713,11 @@ namespace ui::menu {
         if (hoverClose) bg->AddRectFilled({closeX, closeY},
                                           {closeX+closeW, closeY+closeW},
                                           col(UITheme::danger, ma), 5.f);
-        float cX = closeX+14, cY = closeY+14, cr = 4.f;
+        float cX = closeX+16, cY = closeY+16, cr = 5.f;
         bg->AddLine({cX-cr,cY-cr},{cX+cr,cY+cr},
-            hoverClose ? IM_COL32(255,255,255,255) : col(UITheme::text_dim, ma), 1.5f);
+            hoverClose ? IM_COL32(255,255,255,255) : col(UITheme::text_dim, ma), 1.8f);
         bg->AddLine({cX-cr,cY+cr},{cX+cr,cY-cr},
-            hoverClose ? IM_COL32(255,255,255,255) : col(UITheme::text_dim, ma), 1.5f);
+            hoverClose ? IM_COL32(255,255,255,255) : col(UITheme::text_dim, ma), 1.8f);
 
         ImGui::SetCursorScreenPos({closeX, closeY});
         ImGui::PushID(9999);
@@ -673,41 +731,41 @@ namespace ui::menu {
         bg->AddLine({wp.x+sidebarW, sbY}, {wp.x+sidebarW, sbBot},
                     col(UITheme::border, ma), 1.f);
 
-        float navStartY = sbY + 14.f;
-        float navItemH = 36.f;
+        float navStartY = sbY + 16.f;
+        float navItemH = 42.f;
         for (int i = 0; i < 4; i++) {
-            float ny = navStartY + i * (navItemH + 2);
+            float ny = navStartY + i * (navItemH + 4);
             bool act = (tab == i);
             bool hov = ImGui::IsMouseHoveringRect({wp.x, ny},
                                                    {wp.x+sidebarW, ny+navItemH});
             if (act) {
                 bg->AddRectFilled({wp.x, ny}, {wp.x+sidebarW, ny+navItemH},
                                   col(UITheme::accent, ma * 0.25f));
-                bg->AddRectFilled({wp.x, ny}, {wp.x+3, ny+navItemH},
+                bg->AddRectFilled({wp.x, ny}, {wp.x+4, ny+navItemH},
                                   col(UITheme::accent, ma));
             } else if (hov) {
                 bg->AddRectFilled({wp.x, ny}, {wp.x+sidebarW, ny+navItemH},
                                   col(UITheme::widget, ma));
             }
             char numBuf[4]; snprintf(numBuf, sizeof(numBuf), "%02d", i+1);
-            dl->AddText(ImGui::GetFont(), 9.f,
-                {wp.x+14, ny+13}, act ? col(UITheme::accent, ma) : col(UITheme::text_dim, ma), numBuf);
+            dl->AddText(ImGui::GetFont(), FONT_SEC,
+                {wp.x+14, ny+14}, act ? col(UITheme::accent, ma) : col(UITheme::text_dim, ma), numBuf);
             ImU32 txtCol = act ? col(UITheme::text, ma) :
                           (hov ? col(UITheme::text, ma) : col(UITheme::text_dim, ma));
-            dl->AddText(ImGui::GetFont(), 12.f,
-                {wp.x+34, ny+11}, txtCol, tabTitles[i]);
+            dl->AddText(ImGui::GetFont(), FONT_MAIN,
+                {wp.x+40, ny+12}, txtCol, tabTitles[i]);
             ImGui::SetCursorScreenPos({wp.x, ny});
             ImGui::PushID(i+500);
             if (ImGui::InvisibleButton("nav", {sidebarW, navItemH})) tab = i;
             ImGui::PopID();
         }
 
-        float sFootY = sbBot - 40.f;
+        float sFootY = sbBot - 44.f;
         bg->AddLine({wp.x+12, sFootY}, {wp.x+sidebarW-12, sFootY},
                     col(UITheme::border, ma), 1.f);
-        dl->AddText(ImGui::GetFont(), 9.f, {wp.x+14, sFootY+10},
+        dl->AddText(ImGui::GetFont(), FONT_SEC, {wp.x+14, sFootY+10},
                     col(UITheme::text_dim, ma), "BO CLIENT v2.0");
-        dl->AddText(ImGui::GetFont(), 8.f, {wp.x+14, sFootY+24},
+        dl->AddText(ImGui::GetFont(), FONT_HINT, {wp.x+14, sFootY+26},
                     col(UITheme::accent, ma), "@bodz520");
 
         float contentX = wp.x + sidebarW + 20.f;
@@ -754,20 +812,39 @@ namespace ui::menu {
         float fbX = wp.x + 18.f;
         float fbY = fy + 8.f;
         ImGui::SetCursorScreenPos({fbX, fbY});
-        if (NS_Button("f_save", "Save", {70, 28}, true)) {}
+        if (NS_Button("f_save", "Save", {85, 34}, true)) {
+            bool ok = cfg::save();
+            s_saveStatus = ok ? "Config Saved!" : "Save Error!";
+            s_saveStatusTimer = 3.5f;
+        }
         ImGui::SameLine(0, 8);
-        if (NS_Button("f_load", "Load", {70, 28}, false)) {}
+        if (NS_Button("f_load", "Load", {85, 34}, false)) {
+            bool ok = cfg::load();
+            s_saveStatus = ok ? "Config Loaded!" : "No File!";
+            s_saveStatusTimer = 3.5f;
+        }
         ImGui::SameLine(0, 8);
-        if (NS_Button("f_reset", "Reset", {70, 28}, false)) {}
+        if (NS_Button("f_reset", "Reset", {80, 34}, false)) {
+            cfg::reset_defaults();
+            s_saveStatus = "Reset to Defaults!";
+            s_saveStatusTimer = 3.5f;
+        }
+
+        if (s_saveStatusTimer > 0.f) {
+            ImGui::SameLine(0, 14);
+            dl->AddText(ImGui::GetFont(), FONT_MAIN,
+                {wp.x + 295.f, fy + 16.f},
+                C_Success(), s_saveStatus.c_str());
+        }
 
         const char* fh = "@bodz520";
         float fhw = ImGui::CalcTextSize(fh).x;
-        dl->AddText(ImGui::GetFont(), 10.f,
-            {wp.x + ws.x - fhw - 90, fy + 16}, col(UITheme::accent, ma), fh);
+        dl->AddText(ImGui::GetFont(), FONT_SEC,
+            {wp.x + ws.x - fhw - 90, fy + 17}, col(UITheme::accent, ma), fh);
         const char* fv = "V2.0 VIP";
         float fvw = ImGui::CalcTextSize(fv).x;
-        dl->AddText(ImGui::GetFont(), 10.f,
-            {wp.x + ws.x - fvw - 16, fy + 16}, col(UITheme::text_dim, ma), fv);
+        dl->AddText(ImGui::GetFont(), FONT_SEC,
+            {wp.x + ws.x - fvw - 16, fy + 17}, col(UITheme::text_dim, ma), fv);
 
         if ((mp.x>=wp.x && mp.x<=wp.x+ws.x && mp.y>=wp.y && mp.y<=wp.y+headerH)) {
             if (ImGui::IsMouseClicked(0)) {

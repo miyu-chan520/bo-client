@@ -201,10 +201,40 @@ namespace data {
 
         viewMatrix = rpm<matrix>(IntPtr + Offsets::Camera_Matrix);
 
-        // ── Local position ──
+        // ── Local & Camera position ──
         Vector3 localPos = Vector3::Zero();
         uint64_t headNode = rpm<uint64_t>(localPlayer + Offsets::Bone_Head);
         if (headNode) localPos = GetNodePosition(headNode);
+
+        // Resolve true 3D camera world position:
+        // 1. Try Player.MainCameraTransform (0x3E8)
+        // 2. Try FollowCamera.Transform (0x40)
+        // 3. Fallback: localPos + over-the-shoulder 3rd-person offsets
+        Vector3 cameraPos = Vector3::Zero();
+        uint64_t camTF = rpm<uint64_t>(localPlayer + Offsets::Player_MainCameraTransform);
+        if (!camTF && Follow) {
+            camTF = rpm<uint64_t>(Follow + Offsets::Camera_Transform);
+        }
+        if (camTF) {
+            cameraPos = GetPosition(camTF);
+        }
+
+        if (cameraPos == Vector3::Zero() && Follow) {
+            float rOff = rpm<float>(Follow + Offsets::Camera_RightOffset);
+            float uOff = rpm<float>(Follow + Offsets::Camera_UpOffset);
+            float bOff = rpm<float>(Follow + Offsets::Camera_BackOffset);
+            Quaternion camRot = rpm<Quaternion>(Follow + Offsets::Camera_Rotation);
+            if (camRot.sqrMagnitude() > 0.001f) {
+                Vector3 fwd = camRot * Vector3::Forward();
+                Vector3 rgt = camRot * Vector3::Right();
+                Vector3 up  = camRot * Vector3::Up();
+                float rightDist = (rOff > 0.1f && rOff < 2.0f) ? rOff : 0.55f;
+                float upDist    = (uOff > 0.05f && uOff < 2.0f) ? uOff : 0.20f;
+                float backDist  = (bOff > 0.1f && bOff < 5.0f) ? bOff : 1.80f;
+                cameraPos = localPos - (fwd * backDist) + (rgt * rightDist) + (up * upDist);
+            }
+        }
+        if (cameraPos == Vector3::Zero()) cameraPos = localPos;
 
         // ── LOOT ──
         if (cfg::esp::loot) {
@@ -332,7 +362,7 @@ namespace data {
         }
 
         // Aimbot Engine Tick
-        aimbot::Update(localPlayer, localPos);
+        aimbot::Update(localPlayer, localPos, cameraPos);
     }
 
     // ========================================================================

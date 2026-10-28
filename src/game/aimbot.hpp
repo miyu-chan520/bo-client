@@ -28,7 +28,6 @@ namespace aimbot {
         uint64_t addr = 0;
         Vector3  worldPos = Vector3::Zero();
         Vector3  screenPos = Vector3::Zero();
-        uint64_t headCollider = 0;
         float    screenDist = 99999.0f;
         float    distance = 99999.0f;
         bool     isHeadTarget = false;
@@ -53,33 +52,12 @@ namespace aimbot {
         }
     }
 
-    // Euler angles to Unity Quaternion (x, y, z, w)
-    static inline Vector4 DirectionToQuaternion(const Vector3& dir) {
-        float len = Vector3::Magnitude(dir);
-        if (len < 0.0001f) return Vector4(0, 0, 0, 1);
-
-        float yaw = atan2f(dir.x, dir.z);
-        float pitch = -asinf(dir.y / len);
-
-        float cy = cosf(yaw * 0.5f);
-        float sy = sinf(yaw * 0.5f);
-        float cp = cosf(pitch * 0.5f);
-        float sp = sinf(pitch * 0.5f);
-
-        Vector4 q;
-        q.w = cy * cp;
-        q.x = cy * sp;
-        q.y = sy * cp;
-        q.z = -sy * sp;
-        return q;
-    }
-
     static inline void Init() {
         // Aimbot initialized
     }
 
     // Main Aimbot Tick — executed on each background memory cycle
-    inline void Update(uint64_t localAddr, const Vector3& localPos) {
+    inline void Update(uint64_t localAddr, const Vector3& localPos, const Vector3& cameraPos) {
         if (!localAddr || !cfg::aim::enable) return;
 
         // 1. Triggers verification
@@ -89,7 +67,7 @@ namespace aimbot {
         }
 
         if (cfg::aim::aim_scope) {
-            bool isScoping = (rpm<uint64_t>(localAddr + 0x600) != 0) || rpm<bool>(localAddr + 0x624);
+            bool isScoping = rpm<bool>(localAddr + 0x624);
             if (!isScoping) return;
         }
 
@@ -131,6 +109,7 @@ namespace aimbot {
 
                 float sDist = hypotf(boneScreen.x - screenCx, boneScreen.y - screenCy);
 
+                // Aim lock / assistance activates when crosshair moves over designated target point within FOV
                 if (cfg::aim::draw_fov || cfg::aim::fov > 0.f) {
                     if (sDist > cfg::aim::fov) continue;
                 }
@@ -149,7 +128,6 @@ namespace aimbot {
                     best.addr = p.addr;
                     best.worldPos = wPos;
                     best.screenPos = boneScreen;
-                    best.headCollider = rpm<uint64_t>(p.addr + Offsets::Player_HedColider);
                     best.screenDist = sDist;
                     best.distance = p.distance;
                     best.isHeadTarget = (effectiveBone == 0);
@@ -159,30 +137,86 @@ namespace aimbot {
 
         if (!best.addr || best.worldPos == Vector3::Zero()) return;
 
-        // 4. Aim Lock (Camera View Angle Lock to Target)
+        // 4. Aim Lock & Assistance
+        // Computes the true line of sight from camera position to the designated target point.
+        // Synchronizes both Player rotation and FollowCamera rotation, preventing angular desync
+        // and eliminating the crosshair right-shift as well as lobby desync kicks.
         if (cfg::aim::aim_lock) {
-            Vector3 myHead = localPos;
-            if (myHead != Vector3::Zero()) {
-                Vector3 dir = Vector3::Normalize(best.worldPos - myHead);
-                Vector4 quat = DirectionToQuaternion(dir);
+            Vector3 origin = (cameraPos != Vector3::Zero()) ? cameraPos : localPos;
+            Vector3 diff = best.worldPos - origin;
+            float dist = Vector3::Magnitude(diff);
 
-                wpm<Vector4>(localAddr + Offsets::Player_Rotation, quat);
-                wpm<Vector4>(localAddr + Offsets::Player_CurrentAimRotation, quat);
+            if (dist > 0.05f) {
+                Vector3 dir = diff / dist;
+                Quaternion targetQuat = Quaternion::LookRotation(dir, Vector3::Up());
+
+                // Read current player rotation and smoothly interpolate towards target
+                // Clamped smoothing factor avoids unnatural angular velocity spikes
+                Quaternion curRot = rpm<Quaternion>(localAddr + Offsets::Player_Rotation);
+                float smooth = cfg::aim::aim_smooth;
+                if (smooth <= 0.05f) smooth = 0.25f;
+                if (smooth > 0.85f) smooth = 0.85f;
+
+                Quaternion newRot = Quaternion::Slerp(curRot, targetQuat, smooth);
+
+                // Check delta to avoid redundant writes when target is already centered
+                float dot = curRot.x * newRot.x + curRot.y * newRot.y + curRot.z * newRot.z + curRot.w * newRot.w;
+                if (std::fabs(dot) < 0.99999f) {
+                    // Update Player model rotation & aim rotation
+                    wpm<Quaternion>(localAddr + Offsets::Player_Rotation, newRot);
+                    wpm<Quaternion>(localAddr + Offsets::Player_CurrentAimRotation, newRot);
+
+                    // Increment CallSetAimRotationCount so network serialization validates rotation
+                    uint32_t callCount = rpm<uint32_t>(localAddr + Offsets::Player_CallSetAimRotationCount);
+                    wpm<uint32_t>(localAddr + Offsets::Player_CallSetAimRotationCount, callCount + 1);
+
+                    // Synchronize FollowCamera rotation with player rotation
+                    // This eliminates the camera-to-player angle discrepancy that previously
+                    // triggered the lobby return kick after prolonged aiming.
+                    uint64_t followCam = rpm<uint64_t>(localAddr + Offsets::Player_Camera);
+                    if (followCam) {
+                        wpm<Quaternion>(followCam + Offsets::Camera_Rotation, newRot);
+                    }
+
+                    // Update bullet ray direction in Player AimInfo
+                    uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
+                    if (aimInfo) {
+                        wpm<Vector3>(aimInfo + Offsets::AimInfo_Direction, dir);
+                    }
+                    uint64_t auxAimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AuxAimInfo);
+                    if (auxAimInfo) {
+                        wpm<Vector3>(auxAimInfo + Offsets::AimInfo_Direction, dir);
+                    }
+                }
             }
         }
 
-        // 5. Head Collider Injection (when locked to Head)
-        if (best.isHeadTarget && best.headCollider) {
-            wpm<uint64_t>(best.addr + Offsets::Player_ColWrite, best.headCollider);
-        }
-
-        // 6. Safe No Recoil
+        // 5. Working & Safe No Recoil (Zeroes WeaponGunFeelProfileData parameters)
         if (cfg::aim::no_recoil) {
             uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
             if (w) {
-                uint64_t wd = rpm<uint64_t>(w + Offsets::Weapon_Data);
+                uint64_t wd = rpm<uint64_t>(w + Offsets::Weapon_ProfileData);
                 if (wd) {
-                    wpm<float>(wd + Offsets::Weapon_Recoil, 0.0f);
+                    wpm<float>(wd + 0x88, 0.0f);  // visualPitchScale
+                    wpm<float>(wd + 0x8C, 0.0f);  // visualFollowRealRecoil
+                    wpm<float>(wd + 0x90, 0.0f);  // hipRecoilPitchNoise
+                    wpm<float>(wd + 0xB8, 0.0f);  // crouchRecoilScale
+                    wpm<float>(wd + 0xBC, 0.0f);  // hipRecoilPitchMax
+                    wpm<float>(wd + 0xE4, 0.0f);  // hipRecoilYawScale
+                    wpm<float>(wd + 0x124, 0.0f); // hipRecoilPitchMin
+                    wpm<float>(wd + 0x17C, 0.0f); // adsRecoilMaxYawOffset
+                    wpm<float>(wd + 0x180, 0.0f); // adsRecoilMaxPitchOffset
+                    wpm<float>(wd + 0x18C, 0.0f); // adsRecoilYawNoise
+                    wpm<float>(wd + 0x190, 0.0f); // adsRecoilPitchNoise
+                    wpm<float>(wd + 0x194, 0.0f); // hipRecoilYawMin
+                    wpm<float>(wd + 0x198, 0.0f); // adsRecoilYawMin
+                    wpm<float>(wd + 0x19C, 0.0f); // adsRecoilPitchMax
+                    wpm<float>(wd + 0x1A8, 0.0f); // adsRecoilPitchScale
+                    wpm<float>(wd + 0x1B4, 0.0f); // hipRecoilYawMax
+                    wpm<float>(wd + 0x1D8, 0.0f); // adsRecoilYawScale
+                    wpm<float>(wd + 0x1DC, 0.0f); // adsRecoilPitchMin
+                    wpm<float>(wd + 0x1E0, 0.0f); // adsRecoilYawMax
+                    wpm<float>(wd + 0x1E8, 0.0f); // hipRecoilPitchScale
                 }
             }
         }

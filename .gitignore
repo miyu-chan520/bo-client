@@ -5,3 +5,5 @@ libs/
 *.bak
 .DS_Store
 Thumbs.db
+dump.cs
+script.json

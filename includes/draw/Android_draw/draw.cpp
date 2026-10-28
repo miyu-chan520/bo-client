@@ -130,11 +130,11 @@ bool ImGui_init() {
 
     // Menu font
     ImFont* mainFont = io.Fonts->AddFontFromMemoryTTF(
-        (void*)font_ttf, (int)sizeof(font_ttf), 20.f, &cfg);
+        (void*)font_ttf, (int)sizeof(font_ttf), 26.f, &cfg);
 
     // ESP font
     ImFont* espFontCfg = io.Fonts->AddFontFromMemoryTTF(
-        (void*)font_ttf, (int)sizeof(font_ttf), 18.f, &cfg);
+        (void*)font_ttf, (int)sizeof(font_ttf), 22.f, &cfg);
 
     fontBold   = mainFont;
     fontMedium = mainFont;
@@ -144,7 +144,7 @@ bool ImGui_init() {
     io.FontDefault = mainFont;
     io.Fonts->Build();
 
-    ImGui::GetStyle().ScaleAllSizes(1.25f);
+    ImGui::GetStyle().ScaleAllSizes(1.35f);
 
     ::g_Initialized = true;
     return true;
