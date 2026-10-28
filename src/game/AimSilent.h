@@ -37,6 +37,10 @@ namespace aim_engine {
         float    distance = 99999.0f;
     };
 
+    static inline bool is_screen_valid(const Vector3& v) {
+        return v.x > 0.0f && v.y > 0.0f;
+    }
+
     static inline AimTarget FindBestTarget(const Vector3& localPos) {
         AimTarget best;
         uint64_t localAddr = data::localPlayerAddr.load(std::memory_order_relaxed);
@@ -53,10 +57,10 @@ namespace aim_engine {
 
             // Select bone screen coordinate based on configuration
             Vector3 boneScreen = p.Head;
-            if (cfg::aim::target_bone == 1 && ok(p.Breast)) boneScreen = p.Breast;
-            else if (cfg::aim::target_bone == 2 && ok(p.Hip)) boneScreen = p.Hip;
+            if (cfg::aim::target_bone == 1 && is_screen_valid(p.Breast)) boneScreen = p.Breast;
+            else if (cfg::aim::target_bone == 2 && is_screen_valid(p.Hip)) boneScreen = p.Hip;
 
-            if (!ok(boneScreen)) continue;
+            if (!is_screen_valid(boneScreen)) continue;
 
             float sDist = hypotf(boneScreen.x - screenCx, boneScreen.y - screenCy);
 
