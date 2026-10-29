@@ -53,29 +53,32 @@ jobs:
       - name: Create Flashable Magisk Zip
         run: |
           cd magisk_module
-          zip -r9 ../BO_Client_Magisk_Module_v2.0.zip ./*
+          zip -r9 ../BO_Client_Magisk_Module_v2.1.zip ./*
           cd ..
-          ls -lh BO_Client_Magisk_Module_v2.0.zip
+          ls -lh BO_Client_Magisk_Module_v2.1.zip
 
       - name: Upload Magisk Module Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BO_Client_Magisk_Module_v2.0
-          path: BO_Client_Magisk_Module_v2.0.zip
+          name: BO_Client_Magisk_Module_v2.1
+          path: BO_Client_Magisk_Module_v2.1.zip
           retention-days: 14
 
       - name: Create or Update GitHub Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.0
-          name: "BO Client Magisk Module v2.0"
+          tag_name: v2.1
+          name: "BO Client Magisk Module v2.1 (Free Fire MAX & Parallax Fix)"
           body: |
-            ### BO Client v2.0 (OB55 / 1.132.1)
-            - Fixed UI menu visibility and layout bounds
-            - Fixed touch input event drops (synchronous event queue dispatch)
-            - Fixed libil2cpp memory mapping parser (>120MB segments)
-            - Disabled SECURE surface capture flags for full screen recorder / scrcpy compatibility
-          files: BO_Client_Magisk_Module_v2.0.zip
+            ### BO Client v2.1 (OB55 / 1.132.1)
+            - **Free Fire MAX Support**: Automatic dual-target detection for both `com.dts.freefireth` and `com.dts.freefiremax`.
+            - **Aimbot Parallax Fix**: Eliminated the crosshair right-of-head angular error by decoupling character body rotation from FollowCamera view orientation with horizontal parallax trim.
+            - **New Gameplay Features**:
+              - Zero Spread / No Spread `[RISK]` (zeroes weapon profile spread curves).
+              - Silent Aim / Magic Bullet `[RISK]` (direct muzzle trajectory override).
+              - Wide FOV Changer `[SAFE]` (dynamic camera field of view).
+              - Proximity Threat Warning Radar `[SAFE]` (alert when enemies < 20m).
+          files: BO_Client_Magisk_Module_v2.1.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

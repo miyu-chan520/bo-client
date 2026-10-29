@@ -115,7 +115,8 @@ static int attach_or_launch() {
         }
 
         if (proc::pid > 0 && proc::lib != 0) {
-            LOGI("[+] Attached to target process, pid=%d | libil2cpp=0x%lx", proc::pid, (unsigned long)proc::lib);
+            g_targetGame = proc::is_max ? GAME_FF_MAX : GAME_FF;
+            LOGI("[+] Attached to target process (%s), pid=%d | libil2cpp=0x%lx", proc::pkg_name, proc::pid, (unsigned long)proc::lib);
             return proc::pid;
         }
     }
@@ -168,16 +169,15 @@ static int start_overlay() {
     LOGI("=== BO Client service starting ===");
 
     // Step 1: Attach to Target Process first (prevents premature overlay creation)
-    printf(FG_BBLUE "  [1/3] " RST FG_BWHITE "Attaching to " FG_BYELLOW "%s" FG_BWHITE "...\n" RST,
-           GetTargetPackage());
+    printf(FG_BBLUE "  [1/3] " RST FG_BWHITE "Waiting for game process (" FG_BYELLOW "com.dts.freefireth / com.dts.freefiremax" FG_BWHITE ")...\n" RST);
 
     if (attach_or_launch() <= 0 || proc::lib == 0) {
         printf(FG_BRED "  [!] Failed to attach to target process!\n" RST);
         return -1;
     }
 
-    printf(FG_BGREEN "  [✓] Successfully attached! Target PID: " FG_BYELLOW "%d" FG_BGREEN " | Base: " FG_BYELLOW "0x%lx\n" RST,
-           proc::pid, (unsigned long)proc::lib);
+    printf(FG_BGREEN "  [✓] Successfully attached to " FG_BYELLOW "%s" FG_BGREEN "! Target PID: " FG_BYELLOW "%d" FG_BGREEN " | Base: " FG_BYELLOW "0x%lx\n" RST,
+           proc::pkg_name, proc::pid, (unsigned long)proc::lib);
 
     // Step 2: Initialize Security Bypass & Memory Hooks
     printf(FG_BBLUE "  [2/3] " RST FG_BWHITE "Initializing security bypass...\n" RST);

@@ -145,8 +145,14 @@ namespace data {
         std::vector<PlayerData> tmp;
         tmp.reserve(64);
 
-        // Base chain
-        auto GfCell = rpm<uint64_t>(proc::lib + oxorany(Offsets::GameFacade));
+        // Base chain (Dual-target support: Free Fire TH & Free Fire MAX)
+        uintptr_t gfOff = proc::is_max ? Offsets::GameFacade_MAX : Offsets::GameFacade_TH;
+        auto GfCell = rpm<uint64_t>(proc::lib + gfOff);
+        if (!GfCell) {
+            // Fallback to alternate package offset
+            uintptr_t altOff = proc::is_max ? Offsets::GameFacade_TH : Offsets::GameFacade_MAX;
+            GfCell = rpm<uint64_t>(proc::lib + altOff);
+        }
         if (!GfCell) return;
         auto GfClass = rpm<uint64_t>(GfCell);
         if (!GfClass) return;
@@ -235,6 +241,15 @@ namespace data {
             }
         }
         if (cameraPos == Vector3::Zero()) cameraPos = localPos;
+
+        // ── FOV CHANGER (WIDE VIEW) ──
+        if (cfg::misc::fov_changer) {
+            float curFOV = rpm<float>(localPlayer + Offsets::Player_FOVOffset);
+            float targetFOV = 60.0f * cfg::misc::fov_val;
+            if (curFOV > 0.1f && std::fabs(curFOV - targetFOV) > 0.5f) {
+                wpm<float>(localPlayer + Offsets::Player_FOVOffset, targetFOV);
+            }
+        }
 
         // ── LOOT ──
         if (cfg::esp::loot) {

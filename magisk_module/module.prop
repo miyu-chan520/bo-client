@@ -1,6 +1,6 @@
 id=bo_client_overlay
 name=BO Client Overlay & Game Optimizer
-version=v2.0
-versionCode=200
+version=v2.1
+versionCode=210
 author=bodz520
-description=Systemless display overlay & memory instrumentation service for Free Fire (com.dts.freefireth) by @bodz520.
+description=Systemless display overlay & memory instrumentation service for Free Fire & Free Fire MAX (com.dts.freefireth & com.dts.freefiremax) by @bodz520.

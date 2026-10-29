@@ -138,55 +138,83 @@ namespace aimbot {
         if (!best.addr || best.worldPos == Vector3::Zero()) return;
 
         // 4. Aim Lock & Assistance
-        // Computes the true line of sight from camera position to the designated target point.
-        // Synchronizes both Player rotation and FollowCamera rotation, preventing angular desync
-        // and eliminating the crosshair right-shift as well as lobby desync kicks.
+        // Solves the right-of-head parallax offset:
+        // In third-person perspective (TPP), FollowCamera sits over the right shoulder (0.55m offset).
+        // Setting both Player and Camera to the same uncompensated rotation forces an angular divergence.
+        // We decouple Player body rotation (localPos -> target) from Camera look rotation (cameraPos -> compensated target).
         if (cfg::aim::aim_lock) {
-            Vector3 origin = (cameraPos != Vector3::Zero()) ? cameraPos : localPos;
-            Vector3 diff = best.worldPos - origin;
-            float dist = Vector3::Magnitude(diff);
+            Vector3 camOrigin = (cameraPos != Vector3::Zero()) ? cameraPos : localPos;
+            Vector3 camDiff = best.worldPos - camOrigin;
+            float camDist = Vector3::Magnitude(camDiff);
 
-            if (dist > 0.05f) {
-                Vector3 dir = diff / dist;
-                Quaternion targetQuat = Quaternion::LookRotation(dir, Vector3::Up());
+            Vector3 playerDiff = best.worldPos - localPos;
+            float playerDist = Vector3::Magnitude(playerDiff);
 
-                // Read current player rotation and smoothly interpolate towards target
-                // Clamped smoothing factor avoids unnatural angular velocity spikes
-                Quaternion curRot = rpm<Quaternion>(localAddr + Offsets::Player_Rotation);
+            if (camDist > 0.05f && playerDist > 0.05f) {
+                Vector3 camDir = camDiff / camDist;
+                Vector3 playerDir = playerDiff / playerDist;
+
+                // Horizontal parallax compensation:
+                // Camera is offset to the right; subtract horizontal camera-right vector to center crosshair on target
+                Vector3 rightVec = Vector3::Normalize(Vector3::Cross(Vector3::Up(), camDir));
+                Vector3 compensatedTarget = best.worldPos - (rightVec * (0.12f + cfg::aim::aim_x_offset));
+
+                Vector3 finalCamDir = Vector3::Normalize(compensatedTarget - camOrigin);
+                Quaternion camTargetQuat = Quaternion::LookRotation(finalCamDir, Vector3::Up());
+                Quaternion playerTargetQuat = Quaternion::LookRotation(playerDir, Vector3::Up());
+
                 float smooth = cfg::aim::aim_smooth;
                 if (smooth <= 0.05f) smooth = 0.25f;
                 if (smooth > 0.85f) smooth = 0.85f;
 
-                Quaternion newRot = Quaternion::Slerp(curRot, targetQuat, smooth);
+                // 1) Update Player model rotation & aim rotation (from player body)
+                Quaternion curPlayerRot = rpm<Quaternion>(localAddr + Offsets::Player_Rotation);
+                Quaternion newPlayerRot = Quaternion::Slerp(curPlayerRot, playerTargetQuat, smooth);
 
-                // Check delta to avoid redundant writes when target is already centered
-                float dot = curRot.x * newRot.x + curRot.y * newRot.y + curRot.z * newRot.z + curRot.w * newRot.w;
-                if (std::fabs(dot) < 0.99999f) {
-                    // Update Player model rotation & aim rotation
-                    wpm<Quaternion>(localAddr + Offsets::Player_Rotation, newRot);
-                    wpm<Quaternion>(localAddr + Offsets::Player_CurrentAimRotation, newRot);
+                float dotPlayer = curPlayerRot.x * newPlayerRot.x + curPlayerRot.y * newPlayerRot.y +
+                                  curPlayerRot.z * newPlayerRot.z + curPlayerRot.w * newPlayerRot.w;
+                if (std::fabs(dotPlayer) < 0.99999f) {
+                    wpm<Quaternion>(localAddr + Offsets::Player_Rotation, newPlayerRot);
+                    wpm<Quaternion>(localAddr + Offsets::Player_CurrentAimRotation, newPlayerRot);
 
                     // Increment CallSetAimRotationCount so network serialization validates rotation
                     uint32_t callCount = rpm<uint32_t>(localAddr + Offsets::Player_CallSetAimRotationCount);
                     wpm<uint32_t>(localAddr + Offsets::Player_CallSetAimRotationCount, callCount + 1);
+                }
 
-                    // Synchronize FollowCamera rotation with player rotation
-                    // This eliminates the camera-to-player angle discrepancy that previously
-                    // triggered the lobby return kick after prolonged aiming.
-                    uint64_t followCam = rpm<uint64_t>(localAddr + Offsets::Player_Camera);
-                    if (followCam) {
-                        wpm<Quaternion>(followCam + Offsets::Camera_Rotation, newRot);
-                    }
+                // 2) Update FollowCamera rotation with parallax compensation
+                uint64_t followCam = rpm<uint64_t>(localAddr + Offsets::Player_Camera);
+                if (followCam) {
+                    Quaternion curCamRot = rpm<Quaternion>(followCam + Offsets::Camera_Rotation);
+                    Quaternion newCamRot = Quaternion::Slerp(curCamRot, camTargetQuat, smooth);
+                    wpm<Quaternion>(followCam + Offsets::Camera_Rotation, newCamRot);
+                }
 
-                    // Update bullet ray direction in Player AimInfo
-                    uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
-                    if (aimInfo) {
-                        wpm<Vector3>(aimInfo + Offsets::AimInfo_Direction, dir);
+                // 3) Update bullet trajectory in Player AimInfo
+                uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
+                if (aimInfo) {
+                    wpm<Vector3>(aimInfo + Offsets::AimInfo_Direction, playerDir);
+                    if (cfg::aim::silent_aim) {
+                        // Silent Aim / Magic Bullet [RISK]: force bullet origin aligned directly with target
+                        wpm<Vector3>(aimInfo + Offsets::AimInfo_StartPosition, localPos + Vector3(0.0f, 0.45f, 0.0f));
                     }
-                    uint64_t auxAimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AuxAimInfo);
-                    if (auxAimInfo) {
-                        wpm<Vector3>(auxAimInfo + Offsets::AimInfo_Direction, dir);
-                    }
+                }
+                uint64_t auxAimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AuxAimInfo);
+                if (auxAimInfo) {
+                    wpm<Vector3>(auxAimInfo + Offsets::AimInfo_Direction, playerDir);
+                }
+            }
+        }
+
+        // 5. Zero Spread [RISK]
+        if (cfg::aim::zero_spread) {
+            uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
+            if (w) {
+                uint64_t wd = rpm<uint64_t>(w + Offsets::Weapon_ProfileData);
+                if (wd) {
+                    wpm<float>(wd + Offsets::WeaponProfile_hipShotSpreadGrowthScale, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsShotSpreadGrowthScale, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsSoftAssistMaxYaw, 0.0f);
                 }
             }
         }

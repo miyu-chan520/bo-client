@@ -532,5 +532,28 @@ namespace func::esp {
             dl->AddCircle(ImVec2(g_sw * 0.5f, g_sh * 0.5f), cfg::aim::fov,
                           toU32(cfg::aim::fov_col), 64, 1.5f);
         }
+
+        // Proximity Threat Warning (< 20m)
+        if (cfg::misc::dist_warning) {
+            float minEnemyDist = 99999.0f;
+            for (const auto& p : snap) {
+                if (p.curHP > 0 && p.distance < minEnemyDist) {
+                    minEnemyDist = p.distance;
+                }
+            }
+            if (minEnemyDist < 20.0f) {
+                char warn[64];
+                snprintf(warn, sizeof(warn), "THREAT ALERT: ENEMY %.0fm", minEnemyDist);
+                float tw = ImGui::CalcTextSize(warn).x;
+                float tx = (g_sw - tw) * 0.5f;
+                float ty = 60.0f;
+                dl->AddRectFilled({tx - 12.f, ty - 4.f}, {tx + tw + 12.f, ty + 24.f},
+                                  IM_COL32(220, 35, 35, 210), 6.f);
+                dl->AddRect({tx - 12.f, ty - 4.f}, {tx + tw + 12.f, ty + 24.f},
+                            IM_COL32(255, 255, 255, 230), 6.f, 0, 1.5f);
+                dl->AddText(ImGui::GetFont(), 16.f, {tx, ty},
+                            IM_COL32(255, 255, 255, 255), warn);
+            }
+        }
     }
 }

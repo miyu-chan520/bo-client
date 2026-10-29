@@ -12,8 +12,11 @@ namespace Offsets {
 
     // ========================================================================
     // BASE CHAIN (GameFacade → BaseGame)
+    // Dual target: Free Fire Standard (TH) & Free Fire MAX
     // ========================================================================
-    constexpr uintptr_t GameFacade = 0xA72E4E0;
+    constexpr uintptr_t GameFacade_TH            = 0xA72E4E0;
+    constexpr uintptr_t GameFacade_MAX           = 0xA7A8908;
+    constexpr uintptr_t GameFacade               = GameFacade_TH;
     constexpr uintptr_t GameFacade_P2            = 0xB8;
     constexpr uintptr_t BaseGame_Match           = 0x90;
     constexpr uintptr_t BaseGame_Timer           = 0x20;
@@ -83,12 +86,15 @@ namespace Offsets {
     constexpr uintptr_t HP_Value                 = 0x18;
 
     // ========================================================================
-    // WEAPON
+    // WEAPON & SPREAD
     // ========================================================================
     constexpr uintptr_t Player_Weapon            = 0x600;
     constexpr uintptr_t Weapon_Data              = 0x80;
     constexpr uintptr_t Weapon_ProfileData       = 0x4A0; // protected COW.WeaponGunFeelProfileData AFLGAPPILEH; // 0x4a0
     constexpr uintptr_t Weapon_Recoil            = 0x18;
+    constexpr uintptr_t WeaponProfile_hipShotSpreadGrowthScale = 0x68;
+    constexpr uintptr_t WeaponProfile_adsShotSpreadGrowthScale = 0x6C;
+    constexpr uintptr_t WeaponProfile_adsSoftAssistMaxYaw      = 0xA0;
 
     // ========================================================================
     // AIM INFO

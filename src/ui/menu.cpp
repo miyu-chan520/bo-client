@@ -357,7 +357,7 @@ namespace ui::menu {
         float colW = (cw - 32 - 24) * 0.5f;
 
         // ── Card 1: Master & Triggers ──
-        float card1H = 210.f;
+        float card1H = 270.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
         NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Aimbot & Aim Lock"), "Master");
@@ -368,15 +368,17 @@ namespace ui::menu {
         ImGui::SetColumnWidth(0, colW + 12);
         ImGui::SetColumnWidth(1, colW + 12);
 
-        NS_Toggle("aim_enable",   oxorany("Aimbot Master"),    &cfg::aim::enable);
-        NS_Toggle("aim_lock",     oxorany("Aim Lock"),         &cfg::aim::aim_lock);
-        NS_Toggle("aim_vis",      oxorany("Aim Visible"),      &cfg::aim::aim_visible);
+        NS_Toggle("aim_enable",      oxorany("Aimbot Master"),       &cfg::aim::enable);
+        NS_Toggle("aim_lock",        oxorany("Aim Lock"),            &cfg::aim::aim_lock);
+        NS_Toggle("aim_vis",         oxorany("Aim Visible"),         &cfg::aim::aim_visible);
+        NS_Toggle("aim_zero_spread", oxorany("Zero Spread [RISK]"),  &cfg::aim::zero_spread);
 
         ImGui::NextColumn();
 
-        NS_Toggle("aim_fire",     oxorany("Aim Fire"),         &cfg::aim::aim_fire);
-        NS_Toggle("aim_scope",    oxorany("Aim Scope"),        &cfg::aim::aim_scope);
-        NS_Toggle("aim_recoil",   oxorany("No Recoil"),        &cfg::aim::no_recoil);
+        NS_Toggle("aim_fire",        oxorany("Aim Fire"),            &cfg::aim::aim_fire);
+        NS_Toggle("aim_scope",       oxorany("Aim Scope"),           &cfg::aim::aim_scope);
+        NS_Toggle("aim_recoil",      oxorany("No Recoil"),           &cfg::aim::no_recoil);
+        NS_Toggle("aim_silent",      oxorany("Silent Aim [RISK]"),   &cfg::aim::silent_aim);
 
         ImGui::Columns(1);
         ImGui::PopID();
@@ -393,8 +395,8 @@ namespace ui::menu {
         }
 
         dl->AddText(ImGui::GetFont(), FONT_HINT,
-            {cp.x+16, cp.y+180}, C_TextDim(),
-            oxorany("* Aim Lock engages aim assistance when crosshair is moved over designated target."));
+            {cp.x+16, cp.y+236}, C_TextDim(),
+            oxorany("* Aim Lock engages parallax-compensated aim assistance; [RISK] features bypass spread."));
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
@@ -420,16 +422,17 @@ namespace ui::menu {
         ImGui::Dummy({0,0});
 
         // ── Card 3: FOV & Smoothness Tuning ──
-        float card3H = 240.f;
+        float card3H = 295.f;
         ImVec2 cp3 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp3, cw, card3H);
         NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Field Of View & Smoothness"), "Tuning");
         ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+44});
 
-        NS_Toggle("aim_draw_fov", oxorany("Show FOV Circle"), &cfg::aim::draw_fov);
-        NS_Slider("aim_fov",      oxorany("FOV Radius"),      &cfg::aim::fov,        30.f, 400.f, "px");
-        NS_Slider("aim_range",    oxorany("Aim Range"),       &cfg::aim::max_range,  30.f, 400.f, "m");
-        NS_Slider("aim_smooth",   oxorany("Aim Smoothness"),  &cfg::aim::aim_smooth, 0.05f, 0.85f, "");
+        NS_Toggle("aim_draw_fov", oxorany("Show FOV Circle"),     &cfg::aim::draw_fov);
+        NS_Slider("aim_fov",      oxorany("FOV Radius"),          &cfg::aim::fov,          30.f, 400.f, "px");
+        NS_Slider("aim_range",    oxorany("Aim Range"),           &cfg::aim::max_range,    30.f, 400.f, "m");
+        NS_Slider("aim_smooth",   oxorany("Aim Smoothness"),      &cfg::aim::aim_smooth,   0.05f, 0.85f, "");
+        NS_Slider("aim_x_trim",   oxorany("Parallax Trim (H)"),   &cfg::aim::aim_x_offset, -0.30f, 0.30f, "m");
 
         ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
         ImGui::Dummy({0, 40});
@@ -542,19 +545,35 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
-        // ── Card 2: System ──
-        float card2H = 130.f;
+        // ── Card 2: System & Target ──
+        float card2H = 180.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("System"));
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("System & Target"));
         ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
-        snprintf(buf, sizeof(buf), "0x%lx", proc::lib);
+        NS_InfoRow(oxorany("Target Mode"), proc::is_max ? "Free Fire MAX" : "Free Fire Standard");
+        NS_InfoRow(oxorany("Package"), proc::pkg_name[0] ? proc::pkg_name : "com.dts.freefireth");
+        snprintf(buf, sizeof(buf), "0x%lx", (unsigned long)proc::lib);
         NS_InfoRow(oxorany("Library"), buf);
         snprintf(buf, sizeof(buf), "%d", proc::pid);
         NS_InfoRow(oxorany("PID"), buf);
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
+        ImGui::Dummy({0,0});
+
+        // ── Card 2.5: Gameplay Modifiers [SAFE] ──
+        float card25H = 150.f;
+        ImVec2 cp25 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp25, cw, card25H);
+        NS_CardTitle(dl, {cp25.x+16, cp25.y+14}, oxorany("Gameplay Modifiers"), "Safe");
+        ImGui::SetCursorScreenPos({cp25.x+16, cp25.y+44});
+
+        NS_Toggle("misc_fov",       oxorany("Wide FOV [SAFE]"),        &cfg::misc::fov_changer);
+        NS_Slider("misc_fov_val",   oxorany("FOV Scale"),              &cfg::misc::fov_val, 1.0f, 1.4f, "x");
+        NS_Toggle("misc_dist_warn", oxorany("Proximity Threat Alert"), &cfg::misc::dist_warning);
+
+        ImGui::SetCursorScreenPos({cp25.x, cp25.y+card25H+12});
         ImGui::Dummy({0,0});
 
         // ── Card 3: Configuration Management (Save/Load/Reset Clarification) ──

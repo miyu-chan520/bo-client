@@ -44,6 +44,8 @@ namespace aim {
     inline bool  aim_scope     = false;  // Aim Scope (Only when scoping/sighting)
     inline bool  auto_drag     = true;   // Auto Drag Headshot: Body normally, Head on light drag
     inline bool  no_recoil     = false;  // No Recoil (Safe memory zero)
+    inline bool  zero_spread   = false;  // Zero Spread [RISK]
+    inline bool  silent_aim    = false;  // Silent Aim / Magic Bullet [RISK]
     inline bool  draw_fov      = true;   // Draw FOV Circle on Screen
 
     // ── Parameters ──
@@ -51,12 +53,19 @@ namespace aim {
     inline float fov           = 160.f;  // FOV radius in pixels
     inline float max_range     = 250.f;  // Aim range in meters
     inline float aim_smooth    = 0.35f;  // Aim assist smoothing (0.1 to 1.0)
+    inline float aim_x_offset  = 0.0f;   // Horizontal parallax trim (-0.30m to +0.30m)
     inline ImVec4 fov_col      = ImVec4(1.0f, 0.35f, 0.35f, 0.45f);
+}
+
+namespace misc {
+    inline bool  fov_changer   = false;  // Wide FOV [SAFE]
+    inline float fov_val       = 1.15f;  // FOV scale factor
+    inline bool  dist_warning  = true;   // Proximity threat alert (< 20m) [SAFE]
 }
 
 struct ConfigData {
     uint32_t magic = 0x424F4346; // "BOCF"
-    int version = 2;
+    int version = 3;
     bool esp_box;
     int esp_box_type;
     bool esp_name;
@@ -80,11 +89,18 @@ struct ConfigData {
     bool aim_scope;
     bool aim_auto_drag;
     bool aim_no_recoil;
+    bool aim_zero_spread;
+    bool aim_silent_aim;
     bool aim_draw_fov;
     int aim_target_bone;
     float aim_fov;
     float aim_max_range;
     float aim_smooth;
+    float aim_x_offset;
+
+    bool misc_fov_changer;
+    float misc_fov_val;
+    bool misc_dist_warning;
 };
 
 inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
@@ -114,11 +130,18 @@ inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
     d.aim_scope = aim::aim_scope;
     d.aim_auto_drag = aim::auto_drag;
     d.aim_no_recoil = aim::no_recoil;
+    d.aim_zero_spread = aim::zero_spread;
+    d.aim_silent_aim = aim::silent_aim;
     d.aim_draw_fov = aim::draw_fov;
     d.aim_target_bone = aim::target_bone;
     d.aim_fov = aim::fov;
     d.aim_max_range = aim::max_range;
     d.aim_smooth = aim::aim_smooth;
+    d.aim_x_offset = aim::aim_x_offset;
+
+    d.misc_fov_changer = misc::fov_changer;
+    d.misc_fov_val = misc::fov_val;
+    d.misc_dist_warning = misc::dist_warning;
 
     fwrite(&d, sizeof(d), 1, fp);
     fclose(fp);
@@ -156,11 +179,18 @@ inline bool load(const char* path = "/data/local/tmp/.bo_client.cfg") {
     aim::aim_scope = d.aim_scope;
     aim::auto_drag = d.aim_auto_drag;
     aim::no_recoil = d.aim_no_recoil;
+    aim::zero_spread = d.aim_zero_spread;
+    aim::silent_aim = d.aim_silent_aim;
     aim::draw_fov = d.aim_draw_fov;
     aim::target_bone = d.aim_target_bone;
     aim::fov = d.aim_fov;
     aim::max_range = d.aim_max_range;
     aim::aim_smooth = d.aim_smooth;
+    aim::aim_x_offset = d.aim_x_offset;
+
+    misc::fov_changer = d.misc_fov_changer;
+    misc::fov_val = d.misc_fov_val;
+    misc::dist_warning = d.misc_dist_warning;
 
     fclose(fp);
     return true;
@@ -190,10 +220,17 @@ inline void reset_defaults() {
     aim::aim_scope = false;
     aim::auto_drag = true;
     aim::no_recoil = false;
+    aim::zero_spread = false;
+    aim::silent_aim = false;
     aim::draw_fov = true;
     aim::target_bone = 0;
     aim::fov = 160.f;
     aim::max_range = 250.f;
     aim::aim_smooth = 0.35f;
+    aim::aim_x_offset = 0.0f;
+
+    misc::fov_changer = false;
+    misc::fov_val = 1.15f;
+    misc::dist_warning = true;
 }
 }

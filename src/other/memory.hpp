@@ -13,6 +13,8 @@ namespace proc {
     // proc::pm removido — pagemap FD ficava aberto e nunca era lido,
     // deixando um handle pro /proc/<pid>/pagemap detectável em /proc/self/fd.
     inline int      pm  = -1;   // mantido só pra código legado, sempre = -1
+    inline bool     is_max = false;
+    inline char     pkg_name[64] = "com.dts.freefireth";
 }
 
 namespace sys {
@@ -201,8 +203,14 @@ inline int get_pid() {
                         if (b > 0) {
                             cmd[b] = '\0';
                             // Match exact package name (Android cmdline separates argv by \0, first token is package)
-                            if (strcmp(cmd, "com.dts.freefireth") == 0 || strcmp(cmd, "com.dts.freefiremax") == 0) {
+                            if (strcmp(cmd, "com.dts.freefireth") == 0) {
                                 found = pid;
+                                proc::is_max = false;
+                                strncpy(proc::pkg_name, cmd, sizeof(proc::pkg_name) - 1);
+                            } else if (strcmp(cmd, "com.dts.freefiremax") == 0) {
+                                found = pid;
+                                proc::is_max = true;
+                                strncpy(proc::pkg_name, cmd, sizeof(proc::pkg_name) - 1);
                             }
                             wipe(cmd, sizeof(cmd));             // scrub cmdline
                         }
