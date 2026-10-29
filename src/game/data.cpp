@@ -145,14 +145,8 @@ namespace data {
         std::vector<PlayerData> tmp;
         tmp.reserve(64);
 
-        // Base chain (Dual-target support: Free Fire TH & Free Fire MAX)
-        uintptr_t gfOff = proc::is_max ? Offsets::GameFacade_MAX : Offsets::GameFacade_TH;
-        auto GfCell = rpm<uint64_t>(proc::lib + gfOff);
-        if (!GfCell) {
-            // Fallback to alternate package offset
-            uintptr_t altOff = proc::is_max ? Offsets::GameFacade_TH : Offsets::GameFacade_MAX;
-            GfCell = rpm<uint64_t>(proc::lib + altOff);
-        }
+        // Base chain (Target: com.dts.freefireth)
+        auto GfCell = rpm<uint64_t>(proc::lib + Offsets::GameFacade);
         if (!GfCell) return;
         auto GfClass = rpm<uint64_t>(GfCell);
         if (!GfClass) return;

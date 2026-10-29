@@ -42,6 +42,9 @@ namespace aim {
     inline bool  aim_lock      = true;
     inline bool  silent_aim    = false;   // Silent Aim [RISK]
     inline bool  no_recoil     = true;    // Working No Recoil
+    inline bool  no_spread     = true;    // Working Zero Spread
+    inline bool  hitbox_extender = false; // Big Head / Hitbox Extender
+    inline float hitbox_size   = 2.5f;    // Head scale factor (1.0f - 8.0f)
     inline bool  auto_drag     = true;    // Auto Drag Headshot
     inline bool  aim_visible   = true;
     inline bool  aim_fire      = true;
@@ -58,7 +61,7 @@ namespace aim {
 // ── Binary Config Serialization ──
 struct ConfigData {
     uint32_t magic = 0x424F4346; // 'BOCF'
-    uint32_t version = 2;
+    uint32_t version = 3;
 
     // ESP
     bool esp_box;
@@ -83,6 +86,9 @@ struct ConfigData {
     bool aim_lock;
     bool aim_silent;
     bool aim_no_recoil;
+    bool aim_no_spread;
+    bool aim_hitbox_extender;
+    float aim_hitbox_size;
     bool aim_auto_drag;
     bool aim_visible;
     bool aim_fire;
@@ -120,6 +126,9 @@ inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
     d.aim_lock = aim::aim_lock;
     d.aim_silent = aim::silent_aim;
     d.aim_no_recoil = aim::no_recoil;
+    d.aim_no_spread = aim::no_spread;
+    d.aim_hitbox_extender = aim::hitbox_extender;
+    d.aim_hitbox_size = aim::hitbox_size;
     d.aim_auto_drag = aim::auto_drag;
     d.aim_visible = aim::aim_visible;
     d.aim_fire = aim::aim_fire;
@@ -166,6 +175,9 @@ inline bool load(const char* path = "/data/local/tmp/.bo_client.cfg") {
     aim::aim_lock = d.aim_lock;
     aim::silent_aim = d.aim_silent;
     aim::no_recoil = d.aim_no_recoil;
+    aim::no_spread = d.aim_no_spread;
+    aim::hitbox_extender = d.aim_hitbox_extender;
+    aim::hitbox_size = (d.aim_hitbox_size > 0.1f) ? d.aim_hitbox_size : 2.5f;
     aim::auto_drag = d.aim_auto_drag;
     aim::aim_visible = d.aim_visible;
     aim::aim_fire = d.aim_fire;
@@ -203,6 +215,9 @@ inline void reset_defaults() {
     aim::aim_lock = true;
     aim::silent_aim = false;
     aim::no_recoil = true;
+    aim::no_spread = true;
+    aim::hitbox_extender = false;
+    aim::hitbox_size = 2.5f;
     aim::auto_drag = true;
     aim::aim_visible = true;
     aim::aim_fire = true;

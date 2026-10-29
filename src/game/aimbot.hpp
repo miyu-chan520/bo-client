@@ -63,24 +63,93 @@ namespace aimbot {
     inline void Update(uint64_t localAddr, const Vector3& localPos, const Vector3& cameraPos) {
         // If menu is open, never hijack aim or camera
         if (ui::bar::g_open) return;
-        if (!localAddr || !cfg::aim::enable) return;
+        if (!localAddr) return;
 
-        // 1. Triggers verification
+        // ════════════════════════════════════════════════════════════════════
+        // 1. HITBOX EXTENDER / BIG HEAD (Applied to all enemies)
+        // ════════════════════════════════════════════════════════════════════
+        if (cfg::aim::hitbox_extender) {
+            float targetScale = cfg::aim::hitbox_size;
+            if (targetScale < 1.0f) targetScale = 1.0f;
+            if (targetScale > 8.0f) targetScale = 8.0f;
+
+            std::lock_guard<std::mutex> lk(data::players_mutex);
+            for (const auto& p : data::players) {
+                if (!p.addr || p.addr == localAddr || p.curHP <= 0) continue;
+                uint64_t bhComp = rpm<uint64_t>(p.addr + Offsets::Player_BigHeadComponent);
+                if (bhComp) {
+                    float curScale = rpm<float>(bhComp + Offsets::Player_BigHeadScale);
+                    if (std::fabs(curScale - targetScale) > 0.05f) {
+                        wpm<float>(bhComp + Offsets::Player_BigHeadScale, targetScale);
+                    }
+                }
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // 2. WORKING WEAPON MODS: NO RECOIL & NO SPREAD
+        // ════════════════════════════════════════════════════════════════════
+        uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
+        if (w) {
+            uint64_t wd = rpm<uint64_t>(w + Offsets::Weapon_ProfileData);
+            if (wd) {
+                // Working No Recoil
+                if (cfg::aim::no_recoil) {
+                    wpm<bool>(wd + Offsets::WeaponProfile_enableRecoil, false);
+                    wpm<bool>(wd + Offsets::WeaponProfile_enableVisualRecoil, false);
+                    wpm<bool>(wd + Offsets::WeaponProfile_enableLegacyCameraShake, false);
+
+                    wpm<float>(wd + Offsets::WeaponProfile_visualPitchScale, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_visualFollowRealRecoil, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipRecoilPitchNoise, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_crouchRecoilScale, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipRecoilPitchMax, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipRecoilYawScale, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipRecoilPitchMin, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilMaxYawOffset, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilMaxPitchOffset, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilYawNoise, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilPitchNoise, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipRecoilYawMin, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilYawMin, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilPitchMax, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilPitchScale, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipRecoilYawMax, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilYawScale, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilPitchMin, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsRecoilYawMax, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipRecoilPitchScale, 0.0f);
+                }
+
+                // Working No Spread
+                if (cfg::aim::no_spread) {
+                    wpm<bool>(wd + Offsets::WeaponProfile_enableSpread, false);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsSpreadClampMax, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsSpreadClampMin, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipSpreadClampMax, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipSpreadClampMin, 0.0f);
+                }
+            }
+        }
+
+        if (!cfg::aim::enable) return;
+
+        // ════════════════════════════════════════════════════════════════════
+        // 3. TRIGGERS VERIFICATION
+        // ════════════════════════════════════════════════════════════════════
         if (cfg::aim::aim_fire) {
             bool isFiring = rpm<bool>(localAddr + Offsets::Player_IsFiring);
             if (!isFiring) return;
         }
 
         if (cfg::aim::aim_scope) {
-            bool isScoping = rpm<bool>(localAddr + 0x624);
+            bool isScoping = rpm<bool>(localAddr + Offsets::Player_IsScoping);
             if (!isScoping) return;
         }
 
-        // 2. Bone Target Selection:
-        // Choices: 0: Head, 1: Neck, 2: Body
-        // If Auto Drag is active:
-        // - When not dragging -> only aim Body (index 2)
-        // - When dragging lightly upwards -> hard aim to Head (index 0)
+        // ════════════════════════════════════════════════════════════════════
+        // 4. BONE TARGET SELECTION & AUTO DRAG
+        // ════════════════════════════════════════════════════════════════════
         int effectiveBone = cfg::aim::target_bone;
         bool isDraggingUp = (s_drag_boost_timer.load(std::memory_order_relaxed) > 0.0f);
 
@@ -92,7 +161,9 @@ namespace aimbot {
             }
         }
 
-        // 3. Find closest target to screen crosshair within FOV
+        // ════════════════════════════════════════════════════════════════════
+        // 5. FIND CLOSEST TARGET WITHIN FOV
+        // ════════════════════════════════════════════════════════════════════
         float screenCx = g_sw * 0.5f;
         float screenCy = g_sh * 0.5f;
 
@@ -114,7 +185,6 @@ namespace aimbot {
 
                 float sDist = hypotf(boneScreen.x - screenCx, boneScreen.y - screenCy);
 
-                // Aim lock / assistance activates when crosshair moves over designated target point within FOV
                 if (cfg::aim::draw_fov || cfg::aim::fov > 0.f) {
                     if (sDist > cfg::aim::fov) continue;
                 }
@@ -142,11 +212,9 @@ namespace aimbot {
 
         if (!best.addr || best.worldPos == Vector3::Zero()) return;
 
-        // 4. Aim Lock & Assistance
-        // Solves the right-of-head parallax offset:
-        // In third-person perspective (TPP), FollowCamera sits over the right shoulder (0.55m offset).
-        // Setting both Player and Camera to the same uncompensated rotation forces an angular divergence.
-        // We decouple Player body rotation (localPos -> target) from Camera look rotation (cameraPos -> compensated target).
+        // ════════════════════════════════════════════════════════════════════
+        // 6. AIM LOCK & PARALLAX COMPENSATION & SILENT AIM
+        // ════════════════════════════════════════════════════════════════════
         if (cfg::aim::aim_lock) {
             Vector3 camOrigin = (cameraPos != Vector3::Zero()) ? cameraPos : localPos;
             Vector3 camDiff = best.worldPos - camOrigin;
@@ -159,8 +227,7 @@ namespace aimbot {
                 Vector3 camDir = camDiff / camDist;
                 Vector3 playerDir = playerDiff / playerDist;
 
-                // Horizontal parallax compensation:
-                // Camera is offset to the right; subtract horizontal camera-right vector to center crosshair on target
+                // Parallax compensation
                 Vector3 rightVec = Vector3::Normalize(Vector3::Cross(Vector3::Up(), camDir));
                 Vector3 compensatedTarget = best.worldPos - (rightVec * (0.12f + cfg::aim::aim_x_offset));
 
@@ -172,7 +239,7 @@ namespace aimbot {
                 if (smooth <= 0.05f) smooth = 0.25f;
                 if (smooth > 0.85f) smooth = 0.85f;
 
-                // 1) Update Player model rotation & aim rotation (from player body)
+                // 1) Update Player model rotation & aim rotation
                 Quaternion curPlayerRot = rpm<Quaternion>(localAddr + Offsets::Player_Rotation);
                 Quaternion newPlayerRot = Quaternion::Slerp(curPlayerRot, playerTargetQuat, smooth);
 
@@ -195,48 +262,18 @@ namespace aimbot {
                     wpm<Quaternion>(followCam + Offsets::Camera_Rotation, newCamRot);
                 }
 
-                // 3) Update bullet trajectory in Player AimInfo
+                // 3) Update bullet trajectory in Player AimInfo & AuxAimInfo
                 uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
                 if (aimInfo) {
                     wpm<Vector3>(aimInfo + Offsets::AimInfo_Direction, playerDir);
                     if (cfg::aim::silent_aim) {
-                        // Silent Aim / Magic Bullet [RISK]: force bullet origin aligned directly with target
+                        // Silent Aim / Magic Bullet: force bullet origin aligned directly with target
                         wpm<Vector3>(aimInfo + Offsets::AimInfo_StartPosition, localPos + Vector3(0.0f, 0.45f, 0.0f));
                     }
                 }
                 uint64_t auxAimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AuxAimInfo);
                 if (auxAimInfo) {
                     wpm<Vector3>(auxAimInfo + Offsets::AimInfo_Direction, playerDir);
-                }
-            }
-        }
-
-        // 5. Working & Safe No Recoil (Zeroes WeaponGunFeelProfileData parameters)
-        if (cfg::aim::no_recoil) {
-            uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
-            if (w) {
-                uint64_t wd = rpm<uint64_t>(w + Offsets::Weapon_ProfileData);
-                if (wd) {
-                    wpm<float>(wd + 0x88, 0.0f);  // visualPitchScale
-                    wpm<float>(wd + 0x8C, 0.0f);  // visualFollowRealRecoil
-                    wpm<float>(wd + 0x90, 0.0f);  // hipRecoilPitchNoise
-                    wpm<float>(wd + 0xB8, 0.0f);  // crouchRecoilScale
-                    wpm<float>(wd + 0xBC, 0.0f);  // hipRecoilPitchMax
-                    wpm<float>(wd + 0xE4, 0.0f);  // hipRecoilYawScale
-                    wpm<float>(wd + 0x124, 0.0f); // hipRecoilPitchMin
-                    wpm<float>(wd + 0x17C, 0.0f); // adsRecoilMaxYawOffset
-                    wpm<float>(wd + 0x180, 0.0f); // adsRecoilMaxPitchOffset
-                    wpm<float>(wd + 0x18C, 0.0f); // adsRecoilYawNoise
-                    wpm<float>(wd + 0x190, 0.0f); // adsRecoilPitchNoise
-                    wpm<float>(wd + 0x194, 0.0f); // hipRecoilYawMin
-                    wpm<float>(wd + 0x198, 0.0f); // adsRecoilYawMin
-                    wpm<float>(wd + 0x19C, 0.0f); // adsRecoilPitchMax
-                    wpm<float>(wd + 0x1A8, 0.0f); // adsRecoilPitchScale
-                    wpm<float>(wd + 0x1B4, 0.0f); // hipRecoilYawMax
-                    wpm<float>(wd + 0x1D8, 0.0f); // adsRecoilYawScale
-                    wpm<float>(wd + 0x1DC, 0.0f); // adsRecoilPitchMin
-                    wpm<float>(wd + 0x1E0, 0.0f); // adsRecoilYawMax
-                    wpm<float>(wd + 0x1E8, 0.0f); // hipRecoilPitchScale
                 }
             }
         }

@@ -202,14 +202,10 @@ inline int get_pid() {
 
                         if (b > 0) {
                             cmd[b] = '\0';
-                            // Match exact package name (Android cmdline separates argv by \0, first token is package)
+                            // Match exact package name (Target: com.dts.freefireth)
                             if (strcmp(cmd, "com.dts.freefireth") == 0) {
                                 found = pid;
                                 proc::is_max = false;
-                                strncpy(proc::pkg_name, cmd, sizeof(proc::pkg_name) - 1);
-                            } else if (strcmp(cmd, "com.dts.freefiremax") == 0) {
-                                found = pid;
-                                proc::is_max = true;
                                 strncpy(proc::pkg_name, cmd, sizeof(proc::pkg_name) - 1);
                             }
                             wipe(cmd, sizeof(cmd));             // scrub cmdline
