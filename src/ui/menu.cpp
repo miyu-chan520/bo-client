@@ -357,10 +357,10 @@ namespace ui::menu {
         float colW = (cw - 32 - 24) * 0.5f;
 
         // ── Card 1: Master & Controls ──
-        float card1H = 280.f;
+        float card1H = 200.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Aimbot & Combat"), "Master");
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Aimbot & Targeting"), "Master");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
         ImGui::PushID("aim_cols_m");
@@ -370,17 +370,13 @@ namespace ui::menu {
 
         NS_Toggle("aim_enable",    oxorany("Aimbot Master"),     &cfg::aim::enable);
         NS_Toggle("aim_lock",      oxorany("Aim Lock"),          &cfg::aim::aim_lock);
-        NS_Toggle("aim_vis",       oxorany("Aim Visible"),       &cfg::aim::aim_visible);
-        NS_Toggle("aim_auto_drag", oxorany("Auto Drag Headshot"),&cfg::aim::auto_drag);
-        NS_Toggle("aim_hitbox",    oxorany("Hitbox Extender"),   &cfg::aim::hitbox_extender);
+        NS_Toggle("aim_vis",       oxorany("Check Visible"),     &cfg::aim::aim_visible);
 
         ImGui::NextColumn();
 
         NS_Toggle("aim_fire",      oxorany("Aim Fire"),          &cfg::aim::aim_fire);
         NS_Toggle("aim_scope",     oxorany("Aim Scope"),         &cfg::aim::aim_scope);
-        NS_Toggle("aim_silent",    oxorany("Silent Aim [RISK]"), &cfg::aim::silent_aim);
-        NS_Toggle("aim_recoil",    oxorany("No Recoil"),         &cfg::aim::no_recoil);
-        NS_Toggle("aim_spread",    oxorany("No Spread"),         &cfg::aim::no_spread);
+        NS_Toggle("aim_draw_fov",  oxorany("Show FOV Circle"),   &cfg::aim::draw_fov);
 
         ImGui::Columns(1);
         ImGui::PopID();
@@ -397,27 +393,22 @@ namespace ui::menu {
         }
 
         dl->AddText(ImGui::GetFont(), FONT_HINT,
-            {cp.x+16, cp.y+248}, C_TextDim(),
-            oxorany("* Parallax aim, BigHead hitbox, No Recoil & Zero Spread active."));
+            {cp.x+16, cp.y+168}, C_TextDim(),
+            oxorany("* Native touch drag aim lock with parallax alignment & visibility check."));
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
         // ── Card 2: Bone Selection & FOV Tuning ──
-        float card2H = 390.f;
+        float card2H = 170.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Targeting & Smoothness"), "Tuning");
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Aim Position & FOV"), "Tuning");
         ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
-        const char* target_bones[] = { "Aim Head", "Aim Neck", "Aim Body" };
+        const char* target_bones[] = { "Head", "Neck", "Body" };
         NS_ComboRow("aim_bone", oxorany("Target Bone"), &cfg::aim::target_bone, target_bones, 3);
-        NS_Toggle("aim_draw_fov", oxorany("Show FOV Circle"),     &cfg::aim::draw_fov);
-        NS_Slider("aim_fov",      oxorany("FOV Radius"),          &cfg::aim::fov,          30.f, 400.f, "px");
-        NS_Slider("aim_range",    oxorany("Aim Range"),           &cfg::aim::max_range,    30.f, 400.f, "m");
-        NS_Slider("aim_smooth",   oxorany("Aim Smoothness"),      &cfg::aim::aim_smooth,   0.05f, 0.85f, "");
-        NS_Slider("aim_x_trim",   oxorany("Parallax Trim (H)"),   &cfg::aim::aim_x_offset, -0.30f, 0.30f, "m");
-        NS_Slider("aim_hb_sz",    oxorany("Hitbox Scale"),        &cfg::aim::hitbox_size,  1.0f,  6.0f, "x");
+        NS_Slider("aim_fov",    oxorany("Aim FOV"),     &cfg::aim::fov,         30.f, 400.f, "px");
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
         ImGui::Dummy({0, 40});
