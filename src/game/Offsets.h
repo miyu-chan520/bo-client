@@ -102,7 +102,6 @@ namespace Offsets {
     // WEAPON & SPREAD & GUN FEEL PROFILE
     // (COW.GamePlay.HBIBDMMOOOK & COW.WeaponGunFeelProfileData)
     // ========================================================================
-    constexpr uintptr_t Player_Weapon            = 0x600; // ActiveUISightingWeapon
     constexpr uintptr_t Weapon_Data              = 0x80;  // HBIBDMMOOOK::<BDKDBILOMDE>k__BackingField
     constexpr uintptr_t Weapon_ProfileData       = 0x4A0; // HBIBDMMOOOK::AFLGAPPILEH (WeaponGunFeelProfileData)
     constexpr uintptr_t Weapon_Recoil            = 0x18;
