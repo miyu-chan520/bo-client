@@ -473,6 +473,9 @@ namespace func::esp {
         }
 
         ImVec2 anchor(g_sw * 0.5f, 0.f);
+        if (cfg::esp::tracer_pos == 0) anchor = ImVec2(g_sw * 0.5f, g_sh);
+        else if (cfg::esp::tracer_pos == 1) anchor = ImVec2(g_sw * 0.5f, g_sh * 0.5f);
+        else anchor = ImVec2(g_sw * 0.5f, 0.f);
 
         for (const auto& p : snap) {
             if (p.Head.x < 0 || p.Head.y < 0) continue;
@@ -504,11 +507,22 @@ namespace func::esp {
                     withAlpha(toU32(cfg::esp::box_col), 0.95f * aa), 1.8f);
             }
 
+            if (cfg::misc::chams_glow) {
+                ImU32 chamsCol = p.isVisible ? IM_COL32(255, 60, 60, 45) : IM_COL32(40, 200, 255, 35);
+                dl->AddRectFilled(tl, br, chamsCol, 4.0f);
+            }
+
             if (cfg::esp::box)
                 drawBox(dl, tl, br, colBase, cfg::esp::box_type);
 
             if (cfg::esp::skeleton)
                 drawSkeleton(dl, p, colBase);
+
+            if (cfg::esp::head_dot) {
+                ImU32 dotCol = p.isVisible ? IM_COL32(255, 45, 45, 240) : IM_COL32(255, 205, 45, 220);
+                dl->AddCircleFilled(ImVec2(p.Head.x, p.Head.y), 3.5f, dotCol);
+                dl->AddCircle(ImVec2(p.Head.x, p.Head.y), 3.5f, IM_COL32(255, 255, 255, 255), 16, 1.0f);
+            }
 
             if (cfg::esp::firing_ind)
                 drawFiring(dl, p, cx, tl.y);
@@ -524,6 +538,53 @@ namespace func::esp {
 
             if (cfg::esp::weapon)
                 drawWeapon(dl, p, {cx, br.y});
+        }
+
+        // Off-Screen 360 Threat Radar
+        if (cfg::esp::offscreen_arrow) {
+            float cx = g_sw * 0.5f, cy = g_sh * 0.5f;
+            float radius = std::min(cx, cy) - 50.0f;
+            for (const auto& p : snap) {
+                if (p.curHP <= 0 || p.distance > cfg::esp::max_range) continue;
+                bool off = (p.Head.x < 0.f || p.Head.x > g_sw || p.Head.y < 0.f || p.Head.y > g_sh);
+                if (off) {
+                    float dx = (p.Head.x < 0.f) ? (p.Head.x) : (p.Head.x - cx);
+                    float dy = (p.Head.y < 0.f) ? (p.Head.y) : (p.Head.y - cy);
+                    float angle = atan2f(dy, dx);
+                    float ax = cx + cosf(angle) * radius;
+                    float ay = cy + sinf(angle) * radius;
+
+                    float sz = 11.0f;
+                    ImVec2 p1(ax + cosf(angle) * sz, ay + sinf(angle) * sz);
+                    ImVec2 p2(ax + cosf(angle + 2.4f) * (sz * 0.7f), ay + sinf(angle + 2.4f) * (sz * 0.7f));
+                    ImVec2 p3(ax + cosf(angle - 2.4f) * (sz * 0.7f), ay + sinf(angle - 2.4f) * (sz * 0.7f));
+                    ImU32 arrCol = p.isVisible ? IM_COL32(255, 50, 50, 230) : IM_COL32(255, 185, 45, 200);
+                    dl->AddTriangleFilled(p1, p2, p3, arrCol);
+                }
+            }
+        }
+
+        // Enemy Count HUD Badge
+        if (cfg::esp::enemy_count && !snap.empty()) {
+            int totalAlive = 0;
+            int visibleCount = 0;
+            for (const auto& p : snap) {
+                if (p.curHP > 0) {
+                    totalAlive++;
+                    if (p.isVisible) visibleCount++;
+                }
+            }
+            char badge[64];
+            snprintf(badge, sizeof(badge), "ENEMIES: %d | VISIBLE: %d", totalAlive, visibleCount);
+            float bw = ImGui::CalcTextSize(badge).x;
+            float bx = (g_sw - bw) * 0.5f;
+            float by = 24.0f;
+            dl->AddRectFilled({bx - 14.f, by - 4.f}, {bx + bw + 14.f, by + 20.f},
+                              IM_COL32(18, 18, 24, 215), 6.f);
+            dl->AddRect({bx - 14.f, by - 4.f}, {bx + bw + 14.f, by + 20.f},
+                        visibleCount > 0 ? IM_COL32(255, 75, 75, 230) : IM_COL32(60, 180, 255, 180), 6.f, 0, 1.2f);
+            dl->AddText(ImGui::GetFont(), 13.f, {bx, by},
+                        visibleCount > 0 ? IM_COL32(255, 120, 120, 255) : IM_COL32(240, 240, 245, 255), badge);
         }
 
         if (cfg::esp::loot)      drawLoot();

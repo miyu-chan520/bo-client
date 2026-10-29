@@ -6,19 +6,23 @@
 namespace cfg {
 namespace esp {
     // ── Master ──
-    inline bool  box          = true;
-    inline int   box_type     = 0;
-    inline bool  name         = true;
-    inline bool  health       = true;
-    inline bool  armor        = true;
-    inline bool  distance     = true;
-    inline bool  weapon       = true;
-    inline bool  bot_tag      = true;
-    inline bool  skeleton     = false;
-    inline bool  tracer       = false;
-    inline bool  crosshair    = true;
-    inline bool  firing_ind   = true;
-    inline bool  loot         = false;
+    inline bool  box             = true;
+    inline int   box_type        = 0;
+    inline bool  name            = true;
+    inline bool  health          = true;
+    inline bool  armor           = true;
+    inline bool  distance        = true;
+    inline bool  weapon          = true;
+    inline bool  bot_tag         = true;
+    inline bool  skeleton        = false;
+    inline bool  tracer          = false;
+    inline int   tracer_pos      = 0;      // 0: Bottom, 1: Center, 2: Top
+    inline bool  crosshair       = true;
+    inline bool  firing_ind      = true;
+    inline bool  head_dot        = true;   // Head point indicator
+    inline bool  enemy_count     = true;   // Enemy counter HUD badge
+    inline bool  offscreen_arrow = true;   // 360 Off-Screen Threat Radar
+    inline bool  loot            = false;
 
     // ── Setting ──
     inline float max_range     = 250.f;
@@ -46,6 +50,9 @@ namespace aim {
     inline bool  no_recoil     = false;  // No Recoil (Safe memory zero)
     inline bool  zero_spread   = false;  // Zero Spread [RISK]
     inline bool  silent_aim    = false;  // Silent Aim / Magic Bullet [RISK]
+    inline bool  magnet_aim    = false;  // Bullet Magnet / Super Aim Assist [RISK]
+    inline bool  big_head      = false;  // Big Head Hitbox Extender [RISK]
+    inline float big_head_scale= 1.8f;   // Head Hitbox Scale Multiplier
     inline bool  draw_fov      = true;   // Draw FOV Circle on Screen
 
     // ── Parameters ──
@@ -61,11 +68,12 @@ namespace misc {
     inline bool  fov_changer   = false;  // Wide FOV [SAFE]
     inline float fov_val       = 1.15f;  // FOV scale factor
     inline bool  dist_warning  = true;   // Proximity threat alert (< 20m) [SAFE]
+    inline bool  chams_glow    = false;  // Chams Glow Indicator [SAFE]
 }
 
 struct ConfigData {
     uint32_t magic = 0x424F4346; // "BOCF"
-    int version = 3;
+    int version = 4;
     bool esp_box;
     int esp_box_type;
     bool esp_name;
@@ -76,8 +84,12 @@ struct ConfigData {
     bool esp_bot_tag;
     bool esp_skeleton;
     bool esp_tracer;
+    int esp_tracer_pos;
     bool esp_crosshair;
     bool esp_firing_ind;
+    bool esp_head_dot;
+    bool esp_enemy_count;
+    bool esp_offscreen_arrow;
     bool esp_loot;
     float esp_max_range;
     float esp_loot_range;
@@ -91,6 +103,9 @@ struct ConfigData {
     bool aim_no_recoil;
     bool aim_zero_spread;
     bool aim_silent_aim;
+    bool aim_magnet_aim;
+    bool aim_big_head;
+    float aim_big_head_scale;
     bool aim_draw_fov;
     int aim_target_bone;
     float aim_fov;
@@ -101,6 +116,7 @@ struct ConfigData {
     bool misc_fov_changer;
     float misc_fov_val;
     bool misc_dist_warning;
+    bool misc_chams_glow;
 };
 
 inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
@@ -117,8 +133,12 @@ inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
     d.esp_bot_tag = esp::bot_tag;
     d.esp_skeleton = esp::skeleton;
     d.esp_tracer = esp::tracer;
+    d.esp_tracer_pos = esp::tracer_pos;
     d.esp_crosshair = esp::crosshair;
     d.esp_firing_ind = esp::firing_ind;
+    d.esp_head_dot = esp::head_dot;
+    d.esp_enemy_count = esp::enemy_count;
+    d.esp_offscreen_arrow = esp::offscreen_arrow;
     d.esp_loot = esp::loot;
     d.esp_max_range = esp::max_range;
     d.esp_loot_range = esp::loot_range;
@@ -132,6 +152,9 @@ inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
     d.aim_no_recoil = aim::no_recoil;
     d.aim_zero_spread = aim::zero_spread;
     d.aim_silent_aim = aim::silent_aim;
+    d.aim_magnet_aim = aim::magnet_aim;
+    d.aim_big_head = aim::big_head;
+    d.aim_big_head_scale = aim::big_head_scale;
     d.aim_draw_fov = aim::draw_fov;
     d.aim_target_bone = aim::target_bone;
     d.aim_fov = aim::fov;
@@ -142,6 +165,7 @@ inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
     d.misc_fov_changer = misc::fov_changer;
     d.misc_fov_val = misc::fov_val;
     d.misc_dist_warning = misc::dist_warning;
+    d.misc_chams_glow = misc::chams_glow;
 
     fwrite(&d, sizeof(d), 1, fp);
     fclose(fp);
@@ -166,8 +190,12 @@ inline bool load(const char* path = "/data/local/tmp/.bo_client.cfg") {
     esp::bot_tag = d.esp_bot_tag;
     esp::skeleton = d.esp_skeleton;
     esp::tracer = d.esp_tracer;
+    esp::tracer_pos = d.esp_tracer_pos;
     esp::crosshair = d.esp_crosshair;
     esp::firing_ind = d.esp_firing_ind;
+    esp::head_dot = d.esp_head_dot;
+    esp::enemy_count = d.esp_enemy_count;
+    esp::offscreen_arrow = d.esp_offscreen_arrow;
     esp::loot = d.esp_loot;
     esp::max_range = d.esp_max_range;
     esp::loot_range = d.esp_loot_range;
@@ -181,6 +209,9 @@ inline bool load(const char* path = "/data/local/tmp/.bo_client.cfg") {
     aim::no_recoil = d.aim_no_recoil;
     aim::zero_spread = d.aim_zero_spread;
     aim::silent_aim = d.aim_silent_aim;
+    aim::magnet_aim = d.aim_magnet_aim;
+    aim::big_head = d.aim_big_head;
+    aim::big_head_scale = d.aim_big_head_scale;
     aim::draw_fov = d.aim_draw_fov;
     aim::target_bone = d.aim_target_bone;
     aim::fov = d.aim_fov;
@@ -191,6 +222,7 @@ inline bool load(const char* path = "/data/local/tmp/.bo_client.cfg") {
     misc::fov_changer = d.misc_fov_changer;
     misc::fov_val = d.misc_fov_val;
     misc::dist_warning = d.misc_dist_warning;
+    misc::chams_glow = d.misc_chams_glow;
 
     fclose(fp);
     return true;
@@ -207,8 +239,12 @@ inline void reset_defaults() {
     esp::bot_tag = true;
     esp::skeleton = false;
     esp::tracer = false;
+    esp::tracer_pos = 0;
     esp::crosshair = true;
     esp::firing_ind = true;
+    esp::head_dot = true;
+    esp::enemy_count = true;
+    esp::offscreen_arrow = true;
     esp::loot = false;
     esp::max_range = 250.f;
     esp::loot_range = 150.f;
@@ -222,6 +258,9 @@ inline void reset_defaults() {
     aim::no_recoil = false;
     aim::zero_spread = false;
     aim::silent_aim = false;
+    aim::magnet_aim = false;
+    aim::big_head = false;
+    aim::big_head_scale = 1.8f;
     aim::draw_fov = true;
     aim::target_bone = 0;
     aim::fov = 160.f;
@@ -232,5 +271,6 @@ inline void reset_defaults() {
     misc::fov_changer = false;
     misc::fov_val = 1.15f;
     misc::dist_warning = true;
+    misc::chams_glow = false;
 }
 }

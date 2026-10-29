@@ -401,6 +401,22 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
+        // ── Card 1.5: Advanced Weapon Exploits [RISK] ──
+        float cardExpH = 150.f;
+        ImVec2 cpExp = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cpExp, cw, cardExpH);
+        NS_CardTitle(dl, {cpExp.x+16, cpExp.y+14}, oxorany("Weapon Exploits"), "Risk");
+        ImGui::SetCursorScreenPos({cpExp.x+16, cpExp.y+44});
+
+        NS_Toggle("aim_magnet", oxorany("Bullet Magnet / Super Assist [RISK]"), &cfg::aim::magnet_aim);
+        NS_Toggle("aim_bhead",  oxorany("Big Head Hitbox [RISK]"),              &cfg::aim::big_head);
+        if (cfg::aim::big_head) {
+            NS_Slider("bhead_scale", oxorany("Hitbox Scale"), &cfg::aim::big_head_scale, 1.2f, 3.0f, "x");
+        }
+
+        ImGui::SetCursorScreenPos({cpExp.x, cpExp.y+cardExpH+12});
+        ImGui::Dummy({0,0});
+
         // ── Card 2: Targeting & Auto Drag ──
         float card2H = 180.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
@@ -446,7 +462,7 @@ namespace ui::menu {
         float cw = ImGui::GetContentRegionAvail().x;
 
         float colW = (cw - 32 - 24) * 0.5f;
-        float card1H = 300.f;
+        float card1H = 360.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
         NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("ESP Visuals"), "Master");
@@ -457,24 +473,31 @@ namespace ui::menu {
         ImGui::SetColumnWidth(0, colW + 12);
         ImGui::SetColumnWidth(1, colW + 12);
 
-        NS_Toggle("esp_box",     oxorany("Box"),       &cfg::esp::box);
-        NS_Toggle("esp_name",    oxorany("Name"),      &cfg::esp::name);
-        NS_Toggle("esp_health",  oxorany("Health"),    &cfg::esp::health);
-        NS_Toggle("esp_armor",   oxorany("Armor"),     &cfg::esp::armor);
-        NS_Toggle("esp_dist",    oxorany("Distance"),  &cfg::esp::distance);
-        NS_Toggle("esp_bot",     oxorany("Bot Tag"),   &cfg::esp::bot_tag);
+        NS_Toggle("esp_box",     oxorany("Box"),           &cfg::esp::box);
+        NS_Toggle("esp_name",    oxorany("Name"),          &cfg::esp::name);
+        NS_Toggle("esp_health",  oxorany("Health"),        &cfg::esp::health);
+        NS_Toggle("esp_armor",   oxorany("Armor"),         &cfg::esp::armor);
+        NS_Toggle("esp_dist",    oxorany("Distance"),      &cfg::esp::distance);
+        NS_Toggle("esp_bot",     oxorany("Bot Tag"),       &cfg::esp::bot_tag);
+        NS_Toggle("esp_hdot",    oxorany("Head Dot"),      &cfg::esp::head_dot);
 
         ImGui::NextColumn();
 
-        NS_Toggle("esp_tracer",  oxorany("Tracer"),    &cfg::esp::tracer);
-        NS_Toggle("esp_skel",    oxorany("Skeleton"),  &cfg::esp::skeleton);
-        NS_Toggle("esp_cross",   oxorany("Crosshair"), &cfg::esp::crosshair);
-        NS_Toggle("esp_weapon",  oxorany("Weapon"),    &cfg::esp::weapon);
-        NS_Toggle("esp_fire",    oxorany("Firing"),    &cfg::esp::firing_ind);
-        NS_Toggle("esp_loot",    oxorany("Loot"),      &cfg::esp::loot);
+        NS_Toggle("esp_tracer",  oxorany("Tracer"),        &cfg::esp::tracer);
+        NS_Toggle("esp_skel",    oxorany("Skeleton"),      &cfg::esp::skeleton);
+        NS_Toggle("esp_cross",   oxorany("Crosshair"),     &cfg::esp::crosshair);
+        NS_Toggle("esp_weapon",  oxorany("Weapon"),        &cfg::esp::weapon);
+        NS_Toggle("esp_fire",    oxorany("Firing"),        &cfg::esp::firing_ind);
+        NS_Toggle("esp_loot",    oxorany("Loot"),          &cfg::esp::loot);
+        NS_Toggle("esp_ecnt",    oxorany("Enemy Counter"), &cfg::esp::enemy_count);
+        NS_Toggle("esp_360",     oxorany("360 Radar"),     &cfg::esp::offscreen_arrow);
 
         ImGui::Columns(1);
         ImGui::PopID();
+
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+310});
+        const char* tracer_origins[] = { "Screen Bottom", "Screen Center", "Screen Top" };
+        NS_ComboRow("tracer_pos", oxorany("Tracer Origin"), &cfg::esp::tracer_pos, tracer_origins, 3);
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
@@ -563,7 +586,7 @@ namespace ui::menu {
         ImGui::Dummy({0,0});
 
         // ── Card 2.5: Gameplay Modifiers [SAFE] ──
-        float card25H = 150.f;
+        float card25H = 180.f;
         ImVec2 cp25 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp25, cw, card25H);
         NS_CardTitle(dl, {cp25.x+16, cp25.y+14}, oxorany("Gameplay Modifiers"), "Safe");
@@ -572,6 +595,7 @@ namespace ui::menu {
         NS_Toggle("misc_fov",       oxorany("Wide FOV [SAFE]"),        &cfg::misc::fov_changer);
         NS_Slider("misc_fov_val",   oxorany("FOV Scale"),              &cfg::misc::fov_val, 1.0f, 1.4f, "x");
         NS_Toggle("misc_dist_warn", oxorany("Proximity Threat Alert"), &cfg::misc::dist_warning);
+        NS_Toggle("misc_chams",     oxorany("Chams Glow [SAFE]"),      &cfg::misc::chams_glow);
 
         ImGui::SetCursorScreenPos({cp25.x, cp25.y+card25H+12});
         ImGui::Dummy({0,0});

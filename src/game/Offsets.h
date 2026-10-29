@@ -95,6 +95,18 @@ namespace Offsets {
     constexpr uintptr_t WeaponProfile_hipShotSpreadGrowthScale = 0x68;
     constexpr uintptr_t WeaponProfile_adsShotSpreadGrowthScale = 0x6C;
     constexpr uintptr_t WeaponProfile_adsSoftAssistMaxYaw      = 0xA0;
+    constexpr uintptr_t WeaponProfile_adsSpreadClampMax        = 0x12C;
+    constexpr uintptr_t WeaponProfile_hipSpreadClampMax        = 0x158;
+    constexpr uintptr_t WeaponProfile_hipSoftAssistSustain     = 0xF4;
+    constexpr uintptr_t WeaponProfile_softAssistTargetKeepTime = 0x104;
+    constexpr uintptr_t WeaponProfile_hipSoftAssistOuterAngle  = 0xD4;
+    constexpr uintptr_t WeaponProfile_adsSoftAssistOuterAngle  = 0xA8;
+
+    // ========================================================================
+    // BIG HEAD / HITBOX EXTENDER
+    // ========================================================================
+    constexpr uintptr_t Player_BigHeadComponent   = 0x790;
+    constexpr uintptr_t Player_BigHeadScale       = 0x7A8;
 
     // ========================================================================
     // AIM INFO

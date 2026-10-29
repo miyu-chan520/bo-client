@@ -215,11 +215,40 @@ namespace aimbot {
                     wpm<float>(wd + Offsets::WeaponProfile_hipShotSpreadGrowthScale, 0.0f);
                     wpm<float>(wd + Offsets::WeaponProfile_adsShotSpreadGrowthScale, 0.0f);
                     wpm<float>(wd + Offsets::WeaponProfile_adsSoftAssistMaxYaw, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipSpreadClampMax, 0.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsSpreadClampMax, 0.0f);
                 }
             }
         }
 
-        // 5. Working & Safe No Recoil (Zeroes WeaponGunFeelProfileData parameters)
+        // 6. Super Magnet Aim Assist [RISK]
+        if (cfg::aim::magnet_aim) {
+            uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
+            if (w) {
+                uint64_t wd = rpm<uint64_t>(w + Offsets::Weapon_ProfileData);
+                if (wd) {
+                    wpm<float>(wd + Offsets::WeaponProfile_hipSoftAssistSustain, 1.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_softAssistTargetKeepTime, 10.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_hipSoftAssistOuterAngle, 180.0f);
+                    wpm<float>(wd + Offsets::WeaponProfile_adsSoftAssistOuterAngle, 180.0f);
+                }
+            }
+        }
+
+        // 7. Big Head Hitbox Extender [RISK]
+        if (cfg::aim::big_head) {
+            std::lock_guard<std::mutex> lk(data::players_mutex);
+            for (const auto& p : data::players) {
+                if (p.addr && p.curHP > 0 && p.distance < cfg::aim::max_range) {
+                    float curScale = rpm<float>(p.addr + Offsets::Player_BigHeadScale);
+                    if (std::fabs(curScale - cfg::aim::big_head_scale) > 0.05f) {
+                        wpm<float>(p.addr + Offsets::Player_BigHeadScale, cfg::aim::big_head_scale);
+                    }
+                }
+            }
+        }
+
+        // 8. Working & Safe No Recoil (Zeroes WeaponGunFeelProfileData parameters)
         if (cfg::aim::no_recoil) {
             uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
             if (w) {

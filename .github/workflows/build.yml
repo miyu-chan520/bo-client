@@ -53,32 +53,35 @@ jobs:
       - name: Create Flashable Magisk Zip
         run: |
           cd magisk_module
-          zip -r9 ../BO_Client_Magisk_Module_v2.1.zip ./*
+          zip -r9 ../BO_Client_Magisk_Module_v2.2.zip ./*
           cd ..
-          ls -lh BO_Client_Magisk_Module_v2.1.zip
+          ls -lh BO_Client_Magisk_Module_v2.2.zip
 
       - name: Upload Magisk Module Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BO_Client_Magisk_Module_v2.1
-          path: BO_Client_Magisk_Module_v2.1.zip
+          name: BO_Client_Magisk_Module_v2.2
+          path: BO_Client_Magisk_Module_v2.2.zip
           retention-days: 14
 
       - name: Create or Update GitHub Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.1
-          name: "BO Client Magisk Module v2.1 (Free Fire MAX & Parallax Fix)"
+          tag_name: v2.2
+          name: "BO Client Magisk Module v2.2 (Full Feature Pack)"
           body: |
-            ### BO Client v2.1 (OB55 / 1.132.1)
-            - **Free Fire MAX Support**: Automatic dual-target detection for both `com.dts.freefireth` and `com.dts.freefiremax`.
-            - **Aimbot Parallax Fix**: Eliminated the crosshair right-of-head angular error by decoupling character body rotation from FollowCamera view orientation with horizontal parallax trim.
-            - **New Gameplay Features**:
-              - Zero Spread / No Spread `[RISK]` (zeroes weapon profile spread curves).
-              - Silent Aim / Magic Bullet `[RISK]` (direct muzzle trajectory override).
-              - Wide FOV Changer `[SAFE]` (dynamic camera field of view).
-              - Proximity Threat Warning Radar `[SAFE]` (alert when enemies < 20m).
-          files: BO_Client_Magisk_Module_v2.1.zip
+            ### BO Client v2.2 (OB55 / 1.132.1 - Full Feature Release)
+            - **Free Fire MAX & TH Dual Target Engine**: Zero-configuration auto-detection.
+            - **Parallax-Compensated Aim Lock**: Eliminates right-shoulder angular error; centers crosshair on head with manual fine-trim.
+            - **Full Combat & Visual Suite**:
+              - Bullet Magnet / Super Aim Assist `[RISK]` (180-degree aim-assist lock)
+              - Big Head Hitbox Extender `[RISK]` (dynamically scales head hitboxes)
+              - Laser Spread / Zero Spread `[RISK]` (removes hip & ADS spread growth/clamps)
+              - Silent Aim / Magic Bullet `[RISK]` (bullet trajectory redirection)
+              - 360 Off-Screen Threat Radar & Enemy Counter HUD `[SAFE]`
+              - Head Dot Point & Multi-Anchor Tracers `[SAFE]`
+              - Wide FOV Scaler & Chams Glow Silhouette `[SAFE]`
+          files: BO_Client_Magisk_Module_v2.2.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
