@@ -644,10 +644,14 @@ namespace ui::menu {
         ImGui::PushStyleColor(ImGuiCol_WindowBg, {0,0,0,0});
         ImGui::PushStyleColor(ImGuiCol_Border, {0,0,0,0});
 
-        ImVec2 wsz(980.f, 650.f);
-        if (g_menu_pos.x < 0.f) {
+        float targetW = ImMin(980.f, (g_sw > 300.f) ? (g_sw - 30.f) : 980.f);
+        float targetH = ImMin(650.f, (g_sh > 300.f) ? (g_sh - 30.f) : 650.f);
+        ImVec2 wsz(targetW, targetH);
+        if (g_menu_pos.x < 0.f || g_menu_pos.y < 0.f) {
             g_menu_pos = {(g_sw - wsz.x) * 0.5f, (g_sh - wsz.y) * 0.5f};
         }
+        if (g_menu_pos.x < 10.f) g_menu_pos.x = 10.f;
+        if (g_menu_pos.y < 10.f) g_menu_pos.y = 10.f;
         ImGui::SetNextWindowSize(wsz, ImGuiCond_Always);
         ImGui::SetNextWindowPos(g_menu_pos, ImGuiCond_Always);
 

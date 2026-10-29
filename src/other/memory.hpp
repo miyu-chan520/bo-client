@@ -291,7 +291,7 @@ inline uint64_t get_lib() {
                         for (int i = 0; i < ll && ph[i]; i++) {
                             if (ph[i] != lu[i]) { mt = false; break; }
                         }
-                        if (mt && (en - st) < 0x5100000) {
+                        if (mt) {
                             bs = st;
                             sys::close(mfd);
                             wipe(buf, sizeof(buf));

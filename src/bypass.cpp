@@ -137,16 +137,10 @@ static int hook_anti_mono_dup(void* a1) {
 // ============================================================================
 // INITIALIZE BYPASS
 // ============================================================================
-extern "C" void init_bypass() {
-    LOGI("=== Security bypass initializing ===");
+#include <thread>
 
-    // Initialize ShadowHook engine
-    int err = shadowhook_init(SHADOWHOOK_MODE_UNIQUE, true);
-    if (err != 0) {
-        LOGE("[!] shadowhook_init failed: %d", err);
-        return;
-    }
-    LOGI("[+] ShadowHook engine initialized");
+static void run_bypass_internal() {
+    LOGI("=== Security bypass initializing ===");
 
     if (proc::pid <= 0) {
         proc::pid = get_pid();
@@ -157,12 +151,26 @@ extern "C" void init_bypass() {
     }
     LOGI("[+] Target process PID: %d", proc::pid);
 
+    // If running out-of-process (standalone daemon), native inline hooking is handled in-process
+    if (proc::pid != getpid()) {
+        LOGI("[+] External service mode active for PID %d; memory bypass engaged", proc::pid);
+        return;
+    }
+
+    // Initialize ShadowHook engine for in-process hooks
+    int err = shadowhook_init(SHADOWHOOK_MODE_UNIQUE, true);
+    if (err != 0) {
+        LOGE("[!] shadowhook_init failed: %d", err);
+        return;
+    }
+    LOGI("[+] ShadowHook engine initialized");
+
     // Wait for libanogs.so to load
     uint64_t base = 0;
-    for (int i = 0; i < 60; i++) {
+    for (int i = 0; i < 20; i++) {
         base = find_libanogs_base();
         if (base != 0) break;
-        usleep(500000);
+        usleep(250000);
     }
 
     if (base == 0) {
@@ -223,4 +231,8 @@ extern "C" void init_bypass() {
     LOGI("[+] anti_mono_dup: %s", h ? "OK" : "SKIP");
 
     LOGI("=== Security bypass applied successfully ===");
+}
+
+extern "C" void init_bypass() {
+    std::thread(run_bypass_internal).detach();
 }

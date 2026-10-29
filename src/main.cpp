@@ -42,7 +42,7 @@
 // GLOBAL FLAGS
 // ============================================================================
 std::atomic<bool> g_menu_started{true};
-bool g_hideRecord = true;
+bool g_hideRecord = false;
 
 // ============================================================================
 // BYPASS INITIALIZATION
@@ -195,6 +195,11 @@ static int start_overlay() {
                    ? displayInfo.height : displayInfo.width;
     int min_size = (displayInfo.height < displayInfo.width)
                    ? displayInfo.height : displayInfo.width;
+
+    if (max_size <= 0 || min_size <= 0) {
+        max_size = 2400;
+        min_size = 1080;
+    }
 
     g_sw = static_cast<float>(max_size);
     g_sh = static_cast<float>(min_size);

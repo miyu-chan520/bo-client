@@ -7,11 +7,14 @@
 #include <cmath>
 #include <unistd.h>
 #include <vector>
+#include <atomic>
 #include "imgui.h"
 
 #define TOUCH_MODE 2
 
 namespace touch {
+    static std::atomic<bool> g_touch_running{true};
+
     struct input {
         int fd;
         bool canBeUsed{false};
@@ -60,28 +63,38 @@ namespace touch {
 
     void input_thread(const input &_input) {
         sleep(1);
-        if (!imgui_io)
+        if (!imgui_io && ImGui::GetCurrentContext())
             imgui_io = &ImGui::GetIO();
+
         input_event events[64]{0};
-        while (_input.fd > 0 && imgui_io && imgui_io->BackendRendererUserData) {
+        bool isDown = false;
+        float x = 0.0f, y = 0.0f;
+
+        while (_input.fd > 0 && g_touch_running.load(std::memory_order_relaxed)) {
             auto event_readed_count = read(_input.fd, events, sizeof(events));
-            if (event_readed_count == -1)
+            if (event_readed_count <= 0)
                 continue;
             event_readed_count /= (ssize_t) sizeof(input_event);
 
-            static bool isDown = false;
-            static float x = 0.0f, y = 0.0f;
             for (long j = 0; j < event_readed_count; j++) {
                 auto &event = events[j];
+
+                if (event.type == EV_KEY) {
+                    if (event.code == BTN_TOUCH) {
+                        isDown = (event.value != 0);
+                        continue;
+                    }
+                }
+
                 if (event.type == EV_ABS) {
 #if TOUCH_MODE == 2
                     if (_input.trackingIDPresent && event.code == ABS_MT_TRACKING_ID) {
-                        isDown = event.value != -1;
+                        isDown = (event.value != -1);
                         continue;
                     }
 #elif TOUCH_MODE == 0
                     if (event.code == ABS_MT_TRACKING_ID) {
-                        isDown = event.value != -1;
+                        isDown = (event.value != -1);
                         continue;
                     }
 #endif
@@ -94,35 +107,47 @@ namespace touch {
                         continue;
                     }
                 }
-                if (event.code == SYN_REPORT && imgui_io) {
+
+                if (event.code == SYN_REPORT) {
+                    if (!imgui_io && ImGui::GetCurrentContext()) {
+                        imgui_io = &ImGui::GetIO();
+                    }
+
+                    if (imgui_io) {
+                        bool btnDown = isDown;
 #if TOUCH_MODE == 2
-                    imgui_io->MouseDown[0] = _input.trackingIDPresent ? isDown : event_readed_count > 2;
-#elif TOUCH_MODE == 0
-                    imgui_io->MouseDown[0] = isDown;
-#else
-                    imgui_io->MouseDown[0] = event_readed_count > 2;
+                        if (!_input.trackingIDPresent && event_readed_count > 2) {
+                            btnDown = true;
+                        }
+#elif TOUCH_MODE != 0
+                        btnDown = (event_readed_count > 2);
 #endif
-                    if (imgui_io->MouseDown[0]) {
+                        float mappedX = x, mappedY = y;
                         switch (orientation) {
                             case 1:
-                                imgui_io->MousePos.x = y;
-                                imgui_io->MousePos.y = _input.absX.maximum - x;
+                                mappedX = y;
+                                mappedY = _input.absX.maximum - x;
                                 break;
                             case 2:
-                                imgui_io->MousePos.x = _input.absX.maximum - x;
-                                imgui_io->MousePos.y = _input.absY.maximum - y;
+                                mappedX = _input.absX.maximum - x;
+                                mappedY = _input.absY.maximum - y;
                                 break;
                             case 3:
-                                imgui_io->MousePos.x = _input.absY.maximum - y;
-                                imgui_io->MousePos.y = x;
+                                mappedX = _input.absY.maximum - y;
+                                mappedY = x;
                                 break;
                             default:
-                                imgui_io->MousePos.x = x;
-                                imgui_io->MousePos.y = y;
+                                mappedX = x;
+                                mappedY = y;
                                 break;
                         }
-                        imgui_io->MousePos.x *= _input.absXMultiplier;
-                        imgui_io->MousePos.y *= _input.absYMultiplier;
+                        mappedX *= _input.absXMultiplier;
+                        mappedY *= _input.absYMultiplier;
+
+                        imgui_io->AddMousePosEvent(mappedX, mappedY);
+                        imgui_io->AddMouseButtonEvent(0, btnDown);
+                        imgui_io->MousePos = ImVec2(mappedX, mappedY);
+                        imgui_io->MouseDown[0] = btnDown;
                     }
                 }
             }
@@ -131,16 +156,19 @@ namespace touch {
 
     bool init(int32_t _screen_w, int32_t _screen_h, uint8_t _orientation) {
         orientation = _orientation;
+        g_touch_running.store(true);
 
         bool result = false;
 
         const char *path = "/dev/input/";
         auto dir = opendir(path);
+        if (!dir) return false;
+
         dirent *ptr;
-        while ((ptr = readdir(dir)))
+        while ((ptr = readdir(dir))) {
             if (strstr(ptr->d_name, "event")) {
                 char event_path[128];
-                sprintf(event_path, "%s%s", path, ptr->d_name);
+                snprintf(event_path, sizeof(event_path), "%s%s", path, ptr->d_name);
                 input _input(event_path, _screen_w, _screen_h);
                 if (_input.canBeUsed) {
                     result = true;
@@ -148,6 +176,7 @@ namespace touch {
                     std::thread(input_thread, _input).detach();
                 }
             }
+        }
         closedir(dir);
 
         return result;
@@ -166,6 +195,7 @@ namespace touch {
     }
 
     void shutdown() {
+        g_touch_running.store(false);
         for (auto &_input: inputs)
             _input.close();
         inputs.clear();

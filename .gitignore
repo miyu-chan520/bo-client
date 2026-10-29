@@ -5,5 +5,8 @@ libs/
 *.bak
 .DS_Store
 Thumbs.db
-dump.cs
+dump*.cs
+offset*.txt
 script.json
+GEMINI.MD
+skills-lock.json
