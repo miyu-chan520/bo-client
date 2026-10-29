@@ -242,15 +242,6 @@ namespace data {
         }
         if (cameraPos == Vector3::Zero()) cameraPos = localPos;
 
-        // ── FOV CHANGER (WIDE VIEW) ──
-        if (cfg::misc::fov_changer) {
-            float curFOV = rpm<float>(localPlayer + Offsets::Player_FOVOffset);
-            float targetFOV = 60.0f * cfg::misc::fov_val;
-            if (curFOV > 0.1f && std::fabs(curFOV - targetFOV) > 0.5f) {
-                wpm<float>(localPlayer + Offsets::Player_FOVOffset, targetFOV);
-            }
-        }
-
         // ── LOOT ──
         if (cfg::esp::loot) {
             scanLoot(BaseGame, localPos);

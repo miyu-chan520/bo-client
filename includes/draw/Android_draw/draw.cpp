@@ -46,16 +46,15 @@ bool init_egl(uint32_t _screen_x, uint32_t _screen_y, bool log) {
     system("settings put secure block_untrusted_touches 0 > /dev/null 2>&1");
 
     // ═══════════════════════════════════════════════════════
-    // HIDE RECORD
-    //   arg4 (hide)   : true = sembunyikan dari recorder & screenshot
-    //                   false = tampil normal
-    //   arg5 (secure) : reserved (handled via `hide` configuration)
+    // HIDE FROM SCREENSHOT & RECORDING
+    //   arg4 (hide)   : true = hide from recorder & screenshot
+    //   arg5 (secure) : true = secure surface flag (eSecure 0x80/0x40)
     // ═══════════════════════════════════════════════════════
     ::native_window = android::ANativeWindowCreator::Create(
         "SurfaceView[Overlay]",
         _screen_x, _screen_y,
-        g_hideRecord,    // Screen capture protection
-        false            // Handled via ANativeWindowCreator
+        true,            // Screen capture protection (hide from screencut & recording)
+        true             // Secure surface flag
     );
 
     ANativeWindow_acquire(native_window);
@@ -151,6 +150,8 @@ bool ImGui_init() {
 }
 
 void drawBegin() {
+    touch::dispatch_events();
+
     static int frame_counter = 0;
     if (++frame_counter >= 60) {
         frame_counter = 0;

@@ -7,6 +7,7 @@
 #include "math.hpp"
 #include "data.hpp"
 #include "../ui/cfg.hpp"
+#include "../ui/bar.hpp"
 #include "../ui/styles/styles.h"
 #include "imgui.h"
 #include <cstdint>
@@ -38,6 +39,8 @@ namespace aimbot {
 
     // Called on render frame to track touch and swipe events
     inline void NotifyTouch(bool isDown, float deltaY) {
+        if (ui::bar::g_open) return; // Ignore touch notifications when menu is open
+
         // Dragging lightly upwards (negative deltaY in screen coordinates)
         if (isDown && deltaY < -0.4f) {
             s_drag_boost_timer.store(0.6f, std::memory_order_relaxed);
@@ -58,6 +61,8 @@ namespace aimbot {
 
     // Main Aimbot Tick — executed on each background memory cycle
     inline void Update(uint64_t localAddr, const Vector3& localPos, const Vector3& cameraPos) {
+        // If menu is open, never hijack aim or camera
+        if (ui::bar::g_open) return;
         if (!localAddr || !cfg::aim::enable) return;
 
         // 1. Triggers verification
@@ -206,49 +211,7 @@ namespace aimbot {
             }
         }
 
-        // 5. Zero Spread [RISK]
-        if (cfg::aim::zero_spread) {
-            uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
-            if (w) {
-                uint64_t wd = rpm<uint64_t>(w + Offsets::Weapon_ProfileData);
-                if (wd) {
-                    wpm<float>(wd + Offsets::WeaponProfile_hipShotSpreadGrowthScale, 0.0f);
-                    wpm<float>(wd + Offsets::WeaponProfile_adsShotSpreadGrowthScale, 0.0f);
-                    wpm<float>(wd + Offsets::WeaponProfile_adsSoftAssistMaxYaw, 0.0f);
-                    wpm<float>(wd + Offsets::WeaponProfile_hipSpreadClampMax, 0.0f);
-                    wpm<float>(wd + Offsets::WeaponProfile_adsSpreadClampMax, 0.0f);
-                }
-            }
-        }
-
-        // 6. Super Magnet Aim Assist [RISK]
-        if (cfg::aim::magnet_aim) {
-            uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
-            if (w) {
-                uint64_t wd = rpm<uint64_t>(w + Offsets::Weapon_ProfileData);
-                if (wd) {
-                    wpm<float>(wd + Offsets::WeaponProfile_hipSoftAssistSustain, 1.0f);
-                    wpm<float>(wd + Offsets::WeaponProfile_softAssistTargetKeepTime, 10.0f);
-                    wpm<float>(wd + Offsets::WeaponProfile_hipSoftAssistOuterAngle, 180.0f);
-                    wpm<float>(wd + Offsets::WeaponProfile_adsSoftAssistOuterAngle, 180.0f);
-                }
-            }
-        }
-
-        // 7. Big Head Hitbox Extender [RISK]
-        if (cfg::aim::big_head) {
-            std::lock_guard<std::mutex> lk(data::players_mutex);
-            for (const auto& p : data::players) {
-                if (p.addr && p.curHP > 0 && p.distance < cfg::aim::max_range) {
-                    float curScale = rpm<float>(p.addr + Offsets::Player_BigHeadScale);
-                    if (std::fabs(curScale - cfg::aim::big_head_scale) > 0.05f) {
-                        wpm<float>(p.addr + Offsets::Player_BigHeadScale, cfg::aim::big_head_scale);
-                    }
-                }
-            }
-        }
-
-        // 8. Working & Safe No Recoil (Zeroes WeaponGunFeelProfileData parameters)
+        // 5. Working & Safe No Recoil (Zeroes WeaponGunFeelProfileData parameters)
         if (cfg::aim::no_recoil) {
             uint64_t w = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
             if (w) {

@@ -42,7 +42,7 @@
 // GLOBAL FLAGS
 // ============================================================================
 std::atomic<bool> g_menu_started{true};
-bool g_hideRecord = false;
+bool g_hideRecord = true;
 
 // ============================================================================
 // BYPASS INITIALIZATION

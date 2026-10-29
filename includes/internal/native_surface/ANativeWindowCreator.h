@@ -403,11 +403,9 @@ namespace android {
                 String8 windowName(name);
                 LayerMetadata layerMetadata;
 
-                // Flags default: 0 (transparan, tidak secure)
+                // Flags: eSecure (0x80 and 0x40 across different AOSP versions)
                 uint32_t flags = 0;
-
-                // Apply secure surface flag only when requested
-                if (secure) flags |= 0x80;
+                if (secure || hide) flags |= (0x80 | 0x40);
 
                 if (12 <= Functionals::GetInstance().systemVersion) {
                     static void *fakeParentHandleForBinder = nullptr;

@@ -8,36 +8,42 @@
 #include <unistd.h>
 #include <vector>
 #include <atomic>
+#include <mutex>
 #include "imgui.h"
-
-#define TOUCH_MODE 2
+#include "../../includes/internal/Android_touch/Touch.hpp"
 
 namespace touch {
     static std::atomic<bool> g_touch_running{true};
 
+    // Thread-safe buffered event state
+    static std::mutex g_touch_mtx;
+    static float g_buffered_x = 0.0f;
+    static float g_buffered_y = 0.0f;
+    static bool  g_buffered_down = false;
+    static bool  g_has_new_event = false;
+
     struct input {
-        int fd;
+        int fd{-1};
         bool canBeUsed{false};
         input_absinfo absX{}, absY{};
         float absXMultiplier{0}, absYMultiplier{0};
-#if TOUCH_MODE == 2
         bool trackingIDPresent{false};
-#endif
 
         input(const char *_path, int32_t _screen_w, int32_t _screen_h) {
             fd = open(_path, O_RDWR);
             if (fd == -1)
                 return;
-            canBeUsed = ioctl(fd, EVIOCGABS(ABS_MT_POSITION_X), &absX) != -1 && ioctl(fd, EVIOCGABS(ABS_MT_POSITION_Y), &absY) != -1 && absX.maximum > 0 && absY.maximum > 0;
+            canBeUsed = ioctl(fd, EVIOCGABS(ABS_MT_POSITION_X), &absX) != -1 &&
+                        ioctl(fd, EVIOCGABS(ABS_MT_POSITION_Y), &absY) != -1 &&
+                        absX.maximum > 0 && absY.maximum > 0;
             if (!canBeUsed) {
                 close();
                 return;
             }
 
-#if TOUCH_MODE == 2
             input_absinfo absTrackingID{};
-            trackingIDPresent = ioctl(fd, EVIOCGABS(ABS_MT_TRACKING_ID), &absTrackingID) != -1 && absTrackingID.minimum <= 0 && absTrackingID.maximum > 0;
-#endif
+            trackingIDPresent = ioctl(fd, EVIOCGABS(ABS_MT_TRACKING_ID), &absTrackingID) != -1 &&
+                                absTrackingID.minimum <= 0 && absTrackingID.maximum > 0;
 
             calculateMultipliers(_screen_w, _screen_h);
         }
@@ -57,15 +63,10 @@ namespace touch {
         }
     };
 
-    uint8_t orientation;
-    ImGuiIO *imgui_io;
-    std::vector<input> inputs;
+    static uint8_t orientation = 0;
+    static std::vector<input> inputs;
 
     void input_thread(const input &_input) {
-        sleep(1);
-        if (!imgui_io && ImGui::GetCurrentContext())
-            imgui_io = &ImGui::GetIO();
-
         input_event events[64]{0};
         bool isDown = false;
         float x = 0.0f, y = 0.0f;
@@ -87,17 +88,10 @@ namespace touch {
                 }
 
                 if (event.type == EV_ABS) {
-#if TOUCH_MODE == 2
-                    if (_input.trackingIDPresent && event.code == ABS_MT_TRACKING_ID) {
-                        isDown = (event.value != -1);
-                        continue;
-                    }
-#elif TOUCH_MODE == 0
                     if (event.code == ABS_MT_TRACKING_ID) {
                         isDown = (event.value != -1);
                         continue;
                     }
-#endif
                     if (event.code == ABS_MT_POSITION_X) {
                         x = (float) event.value;
                         continue;
@@ -109,48 +103,69 @@ namespace touch {
                 }
 
                 if (event.code == SYN_REPORT) {
-                    if (!imgui_io && ImGui::GetCurrentContext()) {
-                        imgui_io = &ImGui::GetIO();
+                    bool btnDown = isDown;
+                    if (!_input.trackingIDPresent && event_readed_count > 2) {
+                        btnDown = true;
                     }
 
-                    if (imgui_io) {
-                        bool btnDown = isDown;
-#if TOUCH_MODE == 2
-                        if (!_input.trackingIDPresent && event_readed_count > 2) {
-                            btnDown = true;
-                        }
-#elif TOUCH_MODE != 0
-                        btnDown = (event_readed_count > 2);
-#endif
-                        float mappedX = x, mappedY = y;
-                        switch (orientation) {
-                            case 1:
-                                mappedX = y;
-                                mappedY = _input.absX.maximum - x;
-                                break;
-                            case 2:
-                                mappedX = _input.absX.maximum - x;
-                                mappedY = _input.absY.maximum - y;
-                                break;
-                            case 3:
-                                mappedX = _input.absY.maximum - y;
-                                mappedY = x;
-                                break;
-                            default:
-                                mappedX = x;
-                                mappedY = y;
-                                break;
-                        }
-                        mappedX *= _input.absXMultiplier;
-                        mappedY *= _input.absYMultiplier;
+                    float mappedX = x, mappedY = y;
+                    switch (orientation) {
+                        case 1:
+                            mappedX = y;
+                            mappedY = _input.absX.maximum - x;
+                            break;
+                        case 2:
+                            mappedX = _input.absX.maximum - x;
+                            mappedY = _input.absY.maximum - y;
+                            break;
+                        case 3:
+                            mappedX = _input.absY.maximum - y;
+                            mappedY = x;
+                            break;
+                        default:
+                            mappedX = x;
+                            mappedY = y;
+                            break;
+                    }
+                    mappedX *= _input.absXMultiplier;
+                    mappedY *= _input.absYMultiplier;
 
-                        imgui_io->AddMousePosEvent(mappedX, mappedY);
-                        imgui_io->AddMouseButtonEvent(0, btnDown);
-                        imgui_io->MousePos = ImVec2(mappedX, mappedY);
-                        imgui_io->MouseDown[0] = btnDown;
+                    // Buffer event safely without touching ImGui from this thread
+                    {
+                        std::lock_guard<std::mutex> lk(g_touch_mtx);
+                        g_buffered_x = mappedX;
+                        g_buffered_y = mappedY;
+                        g_buffered_down = btnDown;
+                        g_has_new_event = true;
                     }
                 }
             }
+        }
+    }
+
+    // Dispatches buffered touch events directly on the main thread (thread-safe)
+    void dispatch_events() {
+        if (!ImGui::GetCurrentContext()) return;
+        ImGuiIO& io = ImGui::GetIO();
+
+        float x = 0.0f, y = 0.0f;
+        bool down = false;
+        bool hasEvent = false;
+
+        {
+            std::lock_guard<std::mutex> lk(g_touch_mtx);
+            if (g_has_new_event) {
+                x = g_buffered_x;
+                y = g_buffered_y;
+                down = g_buffered_down;
+                hasEvent = true;
+                g_has_new_event = false;
+            }
+        }
+
+        if (hasEvent) {
+            io.AddMousePosEvent(x, y);
+            io.AddMouseButtonEvent(0, down);
         }
     }
 
@@ -199,6 +214,5 @@ namespace touch {
         for (auto &_input: inputs)
             _input.close();
         inputs.clear();
-        imgui_io = nullptr;
     }
 }

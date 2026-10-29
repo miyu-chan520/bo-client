@@ -356,11 +356,11 @@ namespace ui::menu {
         float cw = ImGui::GetContentRegionAvail().x;
         float colW = (cw - 32 - 24) * 0.5f;
 
-        // ── Card 1: Master & Triggers ──
-        float card1H = 270.f;
+        // ── Card 1: Master & Controls ──
+        float card1H = 240.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Aimbot & Aim Lock"), "Master");
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Aimbot & Combat"), "Master");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
         ImGui::PushID("aim_cols_m");
@@ -368,17 +368,17 @@ namespace ui::menu {
         ImGui::SetColumnWidth(0, colW + 12);
         ImGui::SetColumnWidth(1, colW + 12);
 
-        NS_Toggle("aim_enable",      oxorany("Aimbot Master"),       &cfg::aim::enable);
-        NS_Toggle("aim_lock",        oxorany("Aim Lock"),            &cfg::aim::aim_lock);
-        NS_Toggle("aim_vis",         oxorany("Aim Visible"),         &cfg::aim::aim_visible);
-        NS_Toggle("aim_zero_spread", oxorany("Zero Spread [RISK]"),  &cfg::aim::zero_spread);
+        NS_Toggle("aim_enable",    oxorany("Aimbot Master"),     &cfg::aim::enable);
+        NS_Toggle("aim_lock",      oxorany("Aim Lock"),          &cfg::aim::aim_lock);
+        NS_Toggle("aim_vis",       oxorany("Aim Visible"),       &cfg::aim::aim_visible);
+        NS_Toggle("aim_auto_drag", oxorany("Auto Drag Headshot"),&cfg::aim::auto_drag);
 
         ImGui::NextColumn();
 
-        NS_Toggle("aim_fire",        oxorany("Aim Fire"),            &cfg::aim::aim_fire);
-        NS_Toggle("aim_scope",       oxorany("Aim Scope"),           &cfg::aim::aim_scope);
-        NS_Toggle("aim_recoil",      oxorany("No Recoil"),           &cfg::aim::no_recoil);
-        NS_Toggle("aim_silent",      oxorany("Silent Aim [RISK]"),   &cfg::aim::silent_aim);
+        NS_Toggle("aim_fire",      oxorany("Aim Fire"),          &cfg::aim::aim_fire);
+        NS_Toggle("aim_scope",     oxorany("Aim Scope"),         &cfg::aim::aim_scope);
+        NS_Toggle("aim_silent",    oxorany("Silent Aim [RISK]"), &cfg::aim::silent_aim);
+        NS_Toggle("aim_recoil",    oxorany("No Recoil"),         &cfg::aim::no_recoil);
 
         ImGui::Columns(1);
         ImGui::PopID();
@@ -395,62 +395,28 @@ namespace ui::menu {
         }
 
         dl->AddText(ImGui::GetFont(), FONT_HINT,
-            {cp.x+16, cp.y+236}, C_TextDim(),
-            oxorany("* Aim Lock engages parallax-compensated aim assistance; [RISK] features bypass spread."));
+            {cp.x+16, cp.y+208}, C_TextDim(),
+            oxorany("* Parallax-compensated aim assistance with Silent Aim [RISK] & No Recoil."));
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
-        // ── Card 1.5: Advanced Weapon Exploits [RISK] ──
-        float cardExpH = 150.f;
-        ImVec2 cpExp = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cpExp, cw, cardExpH);
-        NS_CardTitle(dl, {cpExp.x+16, cpExp.y+14}, oxorany("Weapon Exploits"), "Risk");
-        ImGui::SetCursorScreenPos({cpExp.x+16, cpExp.y+44});
-
-        NS_Toggle("aim_magnet", oxorany("Bullet Magnet / Super Assist [RISK]"), &cfg::aim::magnet_aim);
-        NS_Toggle("aim_bhead",  oxorany("Big Head Hitbox [RISK]"),              &cfg::aim::big_head);
-        if (cfg::aim::big_head) {
-            NS_Slider("bhead_scale", oxorany("Hitbox Scale"), &cfg::aim::big_head_scale, 1.2f, 3.0f, "x");
-        }
-
-        ImGui::SetCursorScreenPos({cpExp.x, cpExp.y+cardExpH+12});
-        ImGui::Dummy({0,0});
-
-        // ── Card 2: Targeting & Auto Drag ──
-        float card2H = 180.f;
+        // ── Card 2: Bone Selection & FOV Tuning ──
+        float card2H = 340.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Targeting & Bone Selection"), "Bone");
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Targeting & Smoothness"), "Tuning");
         ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
         const char* target_bones[] = { "Aim Head", "Aim Neck", "Aim Body" };
         NS_ComboRow("aim_bone", oxorany("Target Bone"), &cfg::aim::target_bone, target_bones, 3);
-        NS_Toggle("aim_auto_drag", oxorany("Auto Drag Headshot"), &cfg::aim::auto_drag);
-
-        if (cfg::aim::auto_drag) {
-            dl->AddText(ImGui::GetFont(), FONT_SEC,
-                {cp2.x+16, cp2.y+138}, C_AccentBright(),
-                oxorany("* Body aim normal | Light upward swipe locks to Head"));
-        }
-
-        ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
-        ImGui::Dummy({0,0});
-
-        // ── Card 3: FOV & Smoothness Tuning ──
-        float card3H = 295.f;
-        ImVec2 cp3 = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cp3, cw, card3H);
-        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Field Of View & Smoothness"), "Tuning");
-        ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+44});
-
         NS_Toggle("aim_draw_fov", oxorany("Show FOV Circle"),     &cfg::aim::draw_fov);
         NS_Slider("aim_fov",      oxorany("FOV Radius"),          &cfg::aim::fov,          30.f, 400.f, "px");
         NS_Slider("aim_range",    oxorany("Aim Range"),           &cfg::aim::max_range,    30.f, 400.f, "m");
         NS_Slider("aim_smooth",   oxorany("Aim Smoothness"),      &cfg::aim::aim_smooth,   0.05f, 0.85f, "");
         NS_Slider("aim_x_trim",   oxorany("Parallax Trim (H)"),   &cfg::aim::aim_x_offset, -0.30f, 0.30f, "m");
 
-        ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
+        ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
         ImGui::Dummy({0, 40});
     }
 
@@ -462,7 +428,7 @@ namespace ui::menu {
         float cw = ImGui::GetContentRegionAvail().x;
 
         float colW = (cw - 32 - 24) * 0.5f;
-        float card1H = 360.f;
+        float card1H = 320.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
         NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("ESP Visuals"), "Master");
@@ -479,7 +445,6 @@ namespace ui::menu {
         NS_Toggle("esp_armor",   oxorany("Armor"),         &cfg::esp::armor);
         NS_Toggle("esp_dist",    oxorany("Distance"),      &cfg::esp::distance);
         NS_Toggle("esp_bot",     oxorany("Bot Tag"),       &cfg::esp::bot_tag);
-        NS_Toggle("esp_hdot",    oxorany("Head Dot"),      &cfg::esp::head_dot);
 
         ImGui::NextColumn();
 
@@ -489,13 +454,11 @@ namespace ui::menu {
         NS_Toggle("esp_weapon",  oxorany("Weapon"),        &cfg::esp::weapon);
         NS_Toggle("esp_fire",    oxorany("Firing"),        &cfg::esp::firing_ind);
         NS_Toggle("esp_loot",    oxorany("Loot"),          &cfg::esp::loot);
-        NS_Toggle("esp_ecnt",    oxorany("Enemy Counter"), &cfg::esp::enemy_count);
-        NS_Toggle("esp_360",     oxorany("360 Radar"),     &cfg::esp::offscreen_arrow);
 
         ImGui::Columns(1);
         ImGui::PopID();
 
-        ImGui::SetCursorScreenPos({cp.x+16, cp.y+310});
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+265});
         const char* tracer_origins[] = { "Screen Bottom", "Screen Center", "Screen Top" };
         NS_ComboRow("tracer_pos", oxorany("Tracer Origin"), &cfg::esp::tracer_pos, tracer_origins, 3);
 
@@ -585,22 +548,7 @@ namespace ui::menu {
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
         ImGui::Dummy({0,0});
 
-        // ── Card 2.5: Gameplay Modifiers [SAFE] ──
-        float card25H = 180.f;
-        ImVec2 cp25 = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cp25, cw, card25H);
-        NS_CardTitle(dl, {cp25.x+16, cp25.y+14}, oxorany("Gameplay Modifiers"), "Safe");
-        ImGui::SetCursorScreenPos({cp25.x+16, cp25.y+44});
-
-        NS_Toggle("misc_fov",       oxorany("Wide FOV [SAFE]"),        &cfg::misc::fov_changer);
-        NS_Slider("misc_fov_val",   oxorany("FOV Scale"),              &cfg::misc::fov_val, 1.0f, 1.4f, "x");
-        NS_Toggle("misc_dist_warn", oxorany("Proximity Threat Alert"), &cfg::misc::dist_warning);
-        NS_Toggle("misc_chams",     oxorany("Chams Glow [SAFE]"),      &cfg::misc::chams_glow);
-
-        ImGui::SetCursorScreenPos({cp25.x, cp25.y+card25H+12});
-        ImGui::Dummy({0,0});
-
-        // ── Card 3: Configuration Management (Save/Load/Reset Clarification) ──
+        // ── Card 3: Configuration Management (Save/Load/Reset) ──
         float card3H = 180.f;
         ImVec2 cp3 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp3, cw, card3H);
@@ -657,7 +605,7 @@ namespace ui::menu {
     void render() {
         float dt = ImGui::GetIO().DeltaTime;
         aimbot::TickTimer(dt > 0.f ? dt : 0.016f);
-        if (ImGui::GetIO().MouseDown[0]) {
+        if (!bar::g_open && ImGui::GetIO().MouseDown[0]) {
             aimbot::NotifyTouch(true, ImGui::GetIO().MouseDelta.y);
         }
 
@@ -670,7 +618,10 @@ namespace ui::menu {
             int da = (int)(200*ma*bar::game_alpha());
             ImGui::GetBackgroundDrawList()->AddRectFilled({0,0},{g_sw,g_sh},IM_COL32(0,0,0,da));
         }
-        if (ma < 0.01f) return;
+        if (ma < 0.01f) {
+            drag = false;
+            return;
+        }
 
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ma);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.f);
@@ -830,8 +781,9 @@ namespace ui::menu {
         ImGui::BeginChild("content", {contentW, contentH}, false,
                           ImGuiWindowFlags_NoBackground);
 
-        // Mobile touch swipe scrolling
-        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseDragging(0, 2.5f)) {
+        // Mobile touch swipe scrolling (only when not interacting with controls)
+        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
+            ImGui::IsMouseDragging(0, 10.0f) && !ImGui::IsAnyItemActive()) {
             float dy = ImGui::GetIO().MouseDelta.y;
             ImGui::SetScrollY(ImGui::GetScrollY() - dy);
         }
@@ -893,21 +845,26 @@ namespace ui::menu {
         dl->AddText(ImGui::GetFont(), FONT_SEC,
             {wp.x + ws.x - fvw - 16, fy + 17}, col(UITheme::text_dim, ma), fv);
 
-        if ((mp.x>=wp.x && mp.x<=wp.x+ws.x && mp.y>=wp.y && mp.y<=wp.y+headerH)) {
-            if (ImGui::IsMouseClicked(0)) {
+        // Header drag: allow moving window by dragging title area (away from close button)
+        if (mp.x >= wp.x && mp.x <= (wp.x + ws.x - closeW - 30.f) &&
+            mp.y >= wp.y && mp.y <= (wp.y + headerH)) {
+            if (ImGui::IsMouseClicked(0) && !ImGui::IsAnyItemActive() && !ImGui::IsAnyItemHovered()) {
                 drag = true;
-                doff = {mp.x-wp.x, mp.y-wp.y};
+                doff = {mp.x - wp.x, mp.y - wp.y};
             }
         }
         if (drag) {
             if (ImGui::IsMouseDown(0)) {
-                ImVec2 np{mp.x-doff.x, mp.y-doff.y};
-                np.x = ImClamp(np.x, 0.f, g_sw-ws.x);
-                np.y = ImClamp(np.y, 0.f, g_sh-ws.y);
+                ImVec2 np{mp.x - doff.x, mp.y - doff.y};
+                np.x = ImClamp(np.x, 0.f, g_sw - ws.x);
+                np.y = ImClamp(np.y, 0.f, g_sh - ws.y);
                 g_menu_pos = np;
             } else {
                 drag = false;
             }
+        }
+        if (ImGui::IsMouseReleased(0)) {
+            drag = false;
         }
 
         ImGui::End();
