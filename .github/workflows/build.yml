@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -61,3 +63,19 @@ jobs:
           name: BO_Client_Magisk_Module_v2.0
           path: BO_Client_Magisk_Module_v2.0.zip
           retention-days: 14
+
+      - name: Create or Update GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.0
+          name: "BO Client Magisk Module v2.0"
+          body: |
+            ### BO Client v2.0 (OB55 / 1.132.1)
+            - Fixed UI menu visibility and layout bounds
+            - Fixed touch input event drops (synchronous event queue dispatch)
+            - Fixed libil2cpp memory mapping parser (>120MB segments)
+            - Disabled SECURE surface capture flags for full screen recorder / scrcpy compatibility
+          files: BO_Client_Magisk_Module_v2.0.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
