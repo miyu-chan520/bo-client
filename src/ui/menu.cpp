@@ -400,15 +400,19 @@ namespace ui::menu {
         ImGui::Dummy({0,0});
 
         // ── Card 2: Bone Selection & FOV Tuning ──
-        float card2H = 170.f;
+        float card2H = 260.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Aim Position & FOV"), "Tuning");
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Aim Position & Collision Zone"), "Tuning");
         ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
-        const char* target_bones[] = { "Head", "Neck", "Body" };
-        NS_ComboRow("aim_bone", oxorany("Target Bone"), &cfg::aim::target_bone, target_bones, 3);
-        NS_Slider("aim_fov",    oxorany("Aim FOV"),     &cfg::aim::fov,         30.f, 400.f, "px");
+        const char* target_bones[] = { "Head", "Neck", "Chest" };
+        NS_ComboRow("aim_bone", oxorany("Aim Location"), &cfg::aim::target_bone, target_bones, 3);
+        NS_Slider("aim_fov",    oxorany("Aim FOV"),      &cfg::aim::fov,         30.f, 400.f, "px");
+
+        NS_Toggle("aim_col_hs", oxorany("Collision Zone Headshot"), &cfg::aim::collision_zone_headshot);
+        const char* zone_options[] = { "Head Zone", "Neck Zone", "Chest Zone" };
+        NS_ComboRow("aim_zone", oxorany("Trigger Collision Zone"),  &cfg::aim::collision_zone, zone_options, 3);
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
         ImGui::Dummy({0, 40});

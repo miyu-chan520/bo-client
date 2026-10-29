@@ -43,15 +43,16 @@ namespace aim {
     inline bool  aim_fire      = true;    // Aim Fire (trigger when shooting)
     inline bool  aim_scope     = false;   // Aim Scope (trigger when scoping)
     inline bool  aim_visible   = true;    // Check Visible
-    inline int   target_bone   = 0;       // 0: Head, 1: Neck, 2: Body
+    inline int   target_bone   = 0;       // 0: Head, 1: Neck, 2: Chest
+    inline bool  collision_zone_headshot = true; // Convert collision zone hits to Headshot damage
+    inline int   collision_zone = 0;      // 0: Head, 1: Neck, 2: Chest
     inline float fov           = 160.f;   // Aim FOV (User tunable)
     inline bool  draw_fov      = true;    // Show FOV Circle
     inline ImVec4 fov_col      = ImVec4(1.0f, 1.0f, 1.0f, 0.6f);
 
-    // Hardcoded optimal parameters for responsive, natural aim assistance
-    constexpr float kMaxRange   = 350.0f;
-    constexpr float kSmoothness = 0.40f;
-    constexpr float kParallaxX  = 0.12f;
+    // Hardcoded optimal parameters for natural lite aim assistance
+    constexpr float kMaxRange       = 350.0f;
+    constexpr float kLiteSmoothness = 0.08f;
 }
 
 // ── Binary Config Serialization ──
@@ -84,6 +85,8 @@ struct ConfigData {
     bool aim_scope;
     bool aim_visible;
     bool aim_draw_fov;
+    bool aim_col_zone_hs;
+    int  aim_collision_zone;
     int  aim_target_bone;
     float aim_fov;
 };
@@ -115,6 +118,8 @@ inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
     d.aim_scope = aim::aim_scope;
     d.aim_visible = aim::aim_visible;
     d.aim_draw_fov = aim::draw_fov;
+    d.aim_col_zone_hs = aim::collision_zone_headshot;
+    d.aim_collision_zone = aim::collision_zone;
     d.aim_target_bone = aim::target_bone;
     d.aim_fov = aim::fov;
 
@@ -155,6 +160,8 @@ inline bool load(const char* path = "/data/local/tmp/.bo_client.cfg") {
     aim::aim_scope = d.aim_scope;
     aim::aim_visible = d.aim_visible;
     aim::draw_fov = d.aim_draw_fov;
+    aim::collision_zone_headshot = d.aim_col_zone_hs;
+    aim::collision_zone = d.aim_collision_zone;
     aim::target_bone = d.aim_target_bone;
     aim::fov = (d.aim_fov > 10.0f) ? d.aim_fov : 160.0f;
 
@@ -186,6 +193,8 @@ inline void reset_defaults() {
     aim::aim_scope = false;
     aim::aim_visible = true;
     aim::draw_fov = true;
+    aim::collision_zone_headshot = true;
+    aim::collision_zone = 0;
     aim::target_bone = 0;
     aim::fov = 160.f;
 }
