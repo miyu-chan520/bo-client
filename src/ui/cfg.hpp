@@ -42,6 +42,7 @@ namespace aim {
     inline bool  aim_lock      = true;    // Aim Lock in aim area
     inline bool  aim_fire      = true;    // Aim Fire (trigger when shooting)
     inline bool  aim_scope     = false;   // Aim Scope (trigger when scoping)
+    inline bool  aim_touch     = true;    // Input event aim assistance (responsive touch drag aim)
     inline bool  aim_visible   = true;    // Check Visible
     inline int   target_bone   = 0;       // 0: Head, 1: Neck, 2: Chest
     inline bool  collision_zone_headshot = true; // Convert collision zone hits to Headshot damage
@@ -50,9 +51,9 @@ namespace aim {
     inline bool  draw_fov      = true;    // Show FOV Circle
     inline ImVec4 fov_col      = ImVec4(1.0f, 1.0f, 1.0f, 0.6f);
 
-    // Hardcoded optimal parameters for natural lite aim assistance
+    // High performance parameters for fast, safe aim assistance
     constexpr float kMaxRange       = 350.0f;
-    constexpr float kLiteSmoothness = 0.08f;
+    constexpr float kFastSmoothness = 0.40f;
 }
 
 // ── Binary Config Serialization ──
@@ -83,6 +84,7 @@ struct ConfigData {
     bool aim_lock;
     bool aim_fire;
     bool aim_scope;
+    bool aim_touch;
     bool aim_visible;
     bool aim_draw_fov;
     bool aim_col_zone_hs;
@@ -116,6 +118,7 @@ inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
     d.aim_lock = aim::aim_lock;
     d.aim_fire = aim::aim_fire;
     d.aim_scope = aim::aim_scope;
+    d.aim_touch = aim::aim_touch;
     d.aim_visible = aim::aim_visible;
     d.aim_draw_fov = aim::draw_fov;
     d.aim_col_zone_hs = aim::collision_zone_headshot;
@@ -158,6 +161,7 @@ inline bool load(const char* path = "/data/local/tmp/.bo_client.cfg") {
     aim::aim_lock = d.aim_lock;
     aim::aim_fire = d.aim_fire;
     aim::aim_scope = d.aim_scope;
+    aim::aim_touch = d.aim_touch;
     aim::aim_visible = d.aim_visible;
     aim::draw_fov = d.aim_draw_fov;
     aim::collision_zone_headshot = d.aim_col_zone_hs;
@@ -191,6 +195,7 @@ inline void reset_defaults() {
     aim::aim_lock = true;
     aim::aim_fire = true;
     aim::aim_scope = false;
+    aim::aim_touch = true;
     aim::aim_visible = true;
     aim::draw_fov = true;
     aim::collision_zone_headshot = true;

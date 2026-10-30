@@ -146,21 +146,47 @@ namespace data {
         tmp.reserve(64);
 
         // Base chain (Target: com.dts.freefireth)
-        auto GfCell = rpm<uint64_t>(proc::lib + Offsets::GameFacade);
+        static uintptr_t s_cachedGfOffset = Offsets::GameFacade;
+
+        uint64_t GfCell = rpm<uint64_t>(proc::lib + s_cachedGfOffset);
+        if (!GfCell || GfCell < 0x100000000) {
+            // Adaptive scanner: if mini-patch moved GameFacade in .bss, scan ±0x4000
+            for (int delta = -0x4000; delta <= 0x4000; delta += 8) {
+                uintptr_t testOff = Offsets::GameFacade + delta;
+                uint64_t testCell = rpm<uint64_t>(proc::lib + testOff);
+                if (testCell >= 0x100000000) {
+                    uint64_t sf = rpm<uint64_t>(testCell + Offsets::GameFacade_P2);
+                    if (sf >= 0x100000000) {
+                        s_cachedGfOffset = testOff;
+                        GfCell = testCell;
+                        break;
+                    }
+                }
+            }
+        }
         if (!GfCell) return;
+
         auto GfClass = rpm<uint64_t>(GfCell);
         if (!GfClass) return;
 
         auto StaticFields = rpm<uint64_t>(GfClass + Offsets::GameFacade_P2);
         if (!StaticFields) return;
 
-        auto BaseGame = rpm<uint64_t>(StaticFields + 0x8);
-        if (!BaseGame) return;
+        auto BaseGame = rpm<uint64_t>(StaticFields + Offsets::BaseGame_CurrentMatchGame);
+        if (!BaseGame || BaseGame < 0x100000000) {
+            BaseGame = rpm<uint64_t>(StaticFields + Offsets::BaseGame_CurrentGame);
+        }
+        if (!BaseGame) {
+            inMatch.store(false);
+            localPlayerAddr.store(0);
+            std::lock_guard<std::mutex> lk(players_mutex);
+            players.clear();
+            return;
+        }
 
-        bool matchActive = rpm<bool>(BaseGame + Offsets::MatchIsRunning);
-        inMatch.store(matchActive);
-
-        if (!matchActive) {
+        auto m_Match = rpm<uint64_t>(BaseGame + Offsets::BaseGame_Match);
+        if (!m_Match || m_Match < 0x100000000) {
+            inMatch.store(false);
             localPlayerAddr.store(0);
             {
                 std::lock_guard<std::mutex> lk(players_mutex);
@@ -173,15 +199,29 @@ namespace data {
             return;
         }
 
-        auto m_Match = rpm<uint64_t>(BaseGame + Offsets::BaseGame_Match);
-        if (!m_Match) return;
-
         auto localPlayer = rpm<uint64_t>(m_Match + Offsets::Match_LocalPlayer);
+        if (!localPlayer || localPlayer < 0x100000000) {
+            // Secondary fallback for local player
+            localPlayer = rpm<uint64_t>(m_Match + 0xE0);
+        }
 
-        // Store local player address
-        localPlayerAddr.store(localPlayer ? localPlayer : 0);
+        if (!localPlayer || localPlayer < 0x100000000) {
+            inMatch.store(false);
+            localPlayerAddr.store(0);
+            {
+                std::lock_guard<std::mutex> lk(players_mutex);
+                players.clear();
+            }
+            {
+                std::lock_guard<std::mutex> lk(loots_mutex);
+                loots.clear();
+            }
+            return;
+        }
 
-        if (!localPlayer) return;
+        // Valid local player confirmed -> actively in match
+        inMatch.store(true);
+        localPlayerAddr.store(localPlayer);
 
         // ── Camera chain ──
         uint64_t Follow = 0, Cam = 0, IntPtr = 0;
@@ -248,6 +288,8 @@ namespace data {
         uint64_t dictAddr = rpm<uint64_t>(BaseGame + Offsets::Match_PlayerDict);
         if (!dictAddr) return;
 
+        int32_t localTeam = rpm<int32_t>(localPlayer + Offsets::Player_TeamIndex);
+
         MonoDictionary dict(dictAddr);
         if (!dict.valid) return;
 
@@ -257,6 +299,11 @@ namespace data {
             if (!enemy || enemy < 0x100000000 || enemy == localPlayer) continue;
 
             if (rpm<bool>(enemy + Offsets::Player_IsDead)) continue;
+
+            // Strict Teammate Filter (Never aimbot or ESP friendly teammates)
+            int32_t enemyTeam = rpm<int32_t>(enemy + Offsets::Player_TeamIndex);
+            if (localTeam > 0 && enemyTeam > 0 && localTeam == enemyTeam) continue;
+
             bool isBot = rpm<bool>(enemy + Offsets::Player_IsBot);
 
             int hp = readHP(enemy);
@@ -292,7 +339,7 @@ namespace data {
                 }
             }
 
-            // Team
+            // Team UmaData check fallback
             auto umaData = rpm<uint64_t>(uma + Offsets::Uma_Data);
             if (umaData && rpm<bool>(umaData + Offsets::UmaData_Skip)) continue;
 

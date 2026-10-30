@@ -50,25 +50,16 @@ bool g_hideRecord = true;
 extern "C" void init_bypass();
 
 // ============================================================================
-// TARGET GAME DEFINITION
+// TARGET GAME DEFINITION (Free Fire TH)
 // ============================================================================
-enum TargetGame {
-    GAME_FF     = 0,
-    GAME_FF_MAX = 1
-};
-
-static TargetGame g_targetGame = GAME_FF;
-
 static const char* kFFActivity    = "com.dts.freefireth/com.dts.freefireth.FFMainActivity";
-static const char* kFFMaxActivity = "com.dts.freefiremax/com.dts.freefiremax.FFMainActivity";
 static const char* kFFPackage     = "com.dts.freefireth";
-static const char* kFFMaxPackage  = "com.dts.freefiremax";
 
 static const char* GetTargetActivity() {
-    return (g_targetGame == GAME_FF) ? kFFActivity : kFFMaxActivity;
+    return kFFActivity;
 }
 static const char* GetTargetPackage() {
-    return (g_targetGame == GAME_FF) ? kFFPackage : kFFMaxPackage;
+    return kFFPackage;
 }
 
 // ============================================================================
@@ -115,7 +106,6 @@ static int attach_or_launch() {
         }
 
         if (proc::pid > 0 && proc::lib != 0) {
-            g_targetGame = proc::is_max ? GAME_FF_MAX : GAME_FF;
             LOGI("[+] Attached to target process (%s), pid=%d | libil2cpp=0x%lx", proc::pkg_name, proc::pid, (unsigned long)proc::lib);
             return proc::pid;
         }
@@ -169,7 +159,7 @@ static int start_overlay() {
     LOGI("=== BO Client service starting ===");
 
     // Step 1: Attach to Target Process first (prevents premature overlay creation)
-    printf(FG_BBLUE "  [1/3] " RST FG_BWHITE "Waiting for game process (" FG_BYELLOW "com.dts.freefireth / com.dts.freefiremax" FG_BWHITE ")...\n" RST);
+    printf(FG_BBLUE "  [1/3] " RST FG_BWHITE "Waiting for game process (" FG_BYELLOW "com.dts.freefireth" FG_BWHITE ")...\n" RST);
 
     if (attach_or_launch() <= 0 || proc::lib == 0) {
         printf(FG_BRED "  [!] Failed to attach to target process!\n" RST);
@@ -265,13 +255,6 @@ static int start_overlay() {
 int main(int argc, char** argv) {
     apply_process_camouflage(argc, argv);
     print_banner();
-
-    if (argc >= 2) {
-        if (strcmp(argv[1], "ffmax") == 0) {
-            g_targetGame = GAME_FF_MAX;
-            printf(FG_BGREEN "  [+] Selected Mode: " FG_BYELLOW "Free Fire MAX\n" RST);
-        }
-    }
-
+    printf(FG_BGREEN "  [+] Selected Mode: " FG_BYELLOW "Free Fire TH (com.dts.freefireth)\n" RST);
     return start_overlay();
 }

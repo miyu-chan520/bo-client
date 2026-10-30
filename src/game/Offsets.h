@@ -40,6 +40,7 @@ namespace Offsets {
     // PLAYER (COW.GamePlay.Player / PlayerNetwork)
     // ========================================================================
     constexpr uintptr_t Player_MainCameraTransform = 0x3E8; // UnityEngine.Transform MainCameraTransform
+    constexpr uintptr_t Player_TeamIndex         = 0x430; // private System.Int32 <DJJMAHEIDID>k__BackingField (get_TeamIndex)
     constexpr uintptr_t Player_Name              = 0x490; // protected System.String BDHGDLFDHAL
     constexpr uintptr_t Player_OriginalNickName  = 0x498; // public System.String OriginalNickName
     constexpr uintptr_t Player_IsBot             = 0x4A0; // public System.Boolean IsClientBot
