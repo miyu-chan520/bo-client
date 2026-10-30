@@ -54,6 +54,7 @@ namespace aim {
     // High performance parameters for fast, safe aim assistance
     constexpr float kMaxRange       = 350.0f;
     constexpr float kFastSmoothness = 0.40f;
+    constexpr float kLiteSmoothness = kFastSmoothness;
 }
 
 // ── Binary Config Serialization ──

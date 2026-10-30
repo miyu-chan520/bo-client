@@ -234,11 +234,11 @@ namespace aimbot {
                     Quaternion curCamRot = rpm<Quaternion>(followCam + Offsets::Camera_Rotation);
                     Quaternion targetCamRot = Quaternion::LookRotation(aimDir, Vector3::Up());
 
-                    Quaternion newCamRot = Quaternion::Slerp(curCamRot, targetCamRot, cfg::aim::kLiteSmoothness);
+                    Quaternion newCamRot = Quaternion::Slerp(curCamRot, targetCamRot, cfg::aim::kFastSmoothness);
                     wpm<Quaternion>(followCam + Offsets::Camera_Rotation, newCamRot);
 
                     Quaternion curPlayerRot = rpm<Quaternion>(localAddr + Offsets::Player_Rotation);
-                    Quaternion newPlayerRot = Quaternion::Slerp(curPlayerRot, targetCamRot, cfg::aim::kLiteSmoothness);
+                    Quaternion newPlayerRot = Quaternion::Slerp(curPlayerRot, targetCamRot, cfg::aim::kFastSmoothness);
                     wpm<Quaternion>(localAddr + Offsets::Player_Rotation, newPlayerRot);
                     wpm<Quaternion>(localAddr + Offsets::Player_CurrentAimRotation, newPlayerRot);
                 }
