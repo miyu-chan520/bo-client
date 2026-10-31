@@ -239,12 +239,6 @@ namespace data {
             DynamicOffsets::ResolvePlayerClassFields(localPlayer);
             s_lastLocalPlayer = localPlayer;
         }
-            {
-                std::lock_guard<std::mutex> lk(loots_mutex);
-                loots.clear();
-            }
-            return;
-        }
 
         // Valid local player confirmed -> actively in match
         inMatch.store(true);

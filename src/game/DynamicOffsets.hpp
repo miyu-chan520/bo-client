@@ -343,6 +343,16 @@ namespace DynamicOffsets {
         int32_t offRAnkle = GetFieldOffsetByNames(playerClass, {"EMNIJJCEKDD", "RightAnkle", "RAnkle"});
         if (offRAnkle >= 0) Offsets::Bone_RightAnkle = (uintptr_t)offRAnkle;
 
+        int32_t offDead = GetFieldOffsetByNames(playerClass, {"CGJLEBOGBNP", "IsDead", "m_IsDead"});
+        if (offDead >= 0) Offsets::Player_IsDead = (uintptr_t)offDead;
+
+        int32_t offColWrite = GetFieldOffsetByNames(playerClass, {"<AONPKGBGHHI>k__BackingField", "ColWrite", "m_Collider"});
+        if (offColWrite >= 0) Offsets::Player_ColWrite = (uintptr_t)offColWrite;
+
+        Offsets::Head = Offsets::Bone_Head;
+        Offsets::Hip  = Offsets::Bone_Hip;
+        Offsets::Root = Offsets::Bone_Root;
+
         // Dynamic FollowCamera child fields
         uint64_t followCam = rpm<uint64_t>(playerAddr + Offsets::Player_Camera);
         if (followCam >= 0x100000000) {
