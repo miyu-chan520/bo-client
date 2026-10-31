@@ -1,11 +1,13 @@
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "egl_hook.hpp"
 #include "../shadowhook/shadowhook.h"
 #include "../includes/internal/ImGui/imgui.h"
+#include "../includes/internal/ImGui/imgui_internal.h"
 #include "../includes/internal/ImGui/backends/imgui_impl_opengl3.h"
 #include "../ui/menu.hpp"
 #include "../func/esp.hpp"
 #include "../ui/styles/styles.h"
-#include "../font/font_data.hpp"
+#include "font_data.hpp"
 
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
@@ -50,11 +52,13 @@ static EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
             io.DisplaySize = ImVec2(g_sw, g_sh);
 
             // Setup default font
-            io.Fonts->AddFontFromMemoryCompressedTTF(
-                font_data::font_compressed_data,
-                font_data::font_compressed_size,
-                14.0f
-            );
+            if (sizeof(font_ttf) > 0) {
+                ImFontConfig font_cfg;
+                font_cfg.FontDataOwnedByAtlas = false;
+                io.Fonts->AddFontFromMemoryTTF((void*)font_ttf, sizeof(font_ttf), 14.0f, &font_cfg);
+            } else {
+                io.Fonts->AddFontDefault();
+            }
 
             ImGui_ImplOpenGL3_Init("#version 300 es");
             style::init_styles();

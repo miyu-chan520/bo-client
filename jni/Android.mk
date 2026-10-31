@@ -74,6 +74,7 @@ LOCAL_C_INCLUDES := \
 # Compiler Flags
 LOCAL_CPPFLAGS := \
     -DZYGISK_MODULE \
+    -DIMGUI_DEFINE_MATH_OPERATORS \
     -std=c++17 \
     -fexceptions \
     -frtti \

@@ -1,4 +1,7 @@
 #pragma once
+#ifndef IMGUI_DEFINE_MATH_OPERATORS
+#define IMGUI_DEFINE_MATH_OPERATORS
+#endif
 #include "imgui.h"
 #include "imgui_internal.h"
 #include <string>
@@ -116,5 +119,16 @@ namespace style {
         float pa = anim(active_popup + "_pa", 1.f, 18.f);
         if (pa < 0.01f) { active_popup = ""; return; }
         if (pa > 0.15f && ImGui::IsMouseClicked(0) && !clicked) { active_popup = ""; popup_open = false; }
+    }
+
+    inline void init_styles() {
+        ImGuiStyle& st = ImGui::GetStyle();
+        st.WindowRounding = 8.0f;
+        st.FrameRounding = 4.0f;
+        st.PopupRounding = 6.0f;
+        st.ScrollbarRounding = 4.0f;
+        st.GrabRounding = 4.0f;
+        st.WindowBorderSize = 1.0f;
+        st.FrameBorderSize = 0.0f;
     }
 }

@@ -3823,3 +3823,9 @@ static const unsigned char font_ttf[] = {
     0x00, 0x02, 0x00, 0x4B, 0x00, 0xE7, 0x00, 0x02, 0x00, 0x4D, 0x00, 0xE6, 0x00, 0x02, 0x00, 0x55,
 };
 static const int font_ttf_len = 61120;
+
+
+namespace font_data {
+    static const unsigned char* font_compressed_data = font_ttf;
+    static const unsigned int font_compressed_size = sizeof(font_ttf);
+}

@@ -1,3 +1,4 @@
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "bar.hpp"
 #include "styles/styles.h"
 #include "nexora_logo.h"        // ← TAMBAHAN
