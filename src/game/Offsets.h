@@ -22,17 +22,17 @@ namespace Offsets {
 
     // ── Player & Combat (Resolved from live Player Il2CppClass) ──
     inline uintptr_t Player_MainCameraTransform= 0x3E8;
-    inline uintptr_t Player_TeamIndex          = 0;
+    inline uintptr_t Player_TeamIndex          = 0x430;
     inline uintptr_t Player_Name               = 0x490;
-    inline uintptr_t Player_OriginalNickName   = 0;
+    inline uintptr_t Player_OriginalNickName   = 0x498;
     inline uintptr_t Player_IsBot              = 0;
     inline uintptr_t Player_Speed              = 0;
     inline uintptr_t Player_Weapon             = 0;
     inline uintptr_t Player_Rotation           = 0;
     inline uintptr_t Player_IsScoping          = 0;
-    inline uintptr_t Player_Camera             = 0;
-    inline uintptr_t Player_HedColider         = 0;
-    inline uintptr_t Player_Avatar             = 0;
+    inline uintptr_t Player_Camera             = 0x690;
+    inline uintptr_t Player_HedColider         = 0x738;
+    inline uintptr_t Player_Avatar             = 0x770;
     inline uintptr_t Player_CallSetAimRotationCount = 0;
     inline uintptr_t Player_IsFiring           = 0;
     inline uintptr_t Player_AimInfo            = 0;
@@ -47,12 +47,12 @@ namespace Offsets {
     inline uintptr_t Player_IsGrounded         = 0x11C;
 
     // ── Avatar & Camera (Resolved from live child classes) ──
-    inline uintptr_t Avatar_Uma                = 0;
+    inline uintptr_t Avatar_Uma                = 0x28;
     inline uintptr_t Uma_Visible               = 0x101;
     inline uintptr_t Uma_Data                  = 0x28;
     inline uintptr_t UmaData_Skip              = 0x91;
 
-    inline uintptr_t Camera_Follow             = 0;
+    inline uintptr_t Camera_Follow             = 0x30;
     inline uintptr_t Camera_Transform          = 0x40;
     inline uintptr_t Camera_RightOffset        = 0;
     inline uintptr_t Camera_UpOffset           = 0;
@@ -70,25 +70,26 @@ namespace Offsets {
     inline uintptr_t Weapon_Data               = 0x80;
 
     // ── 14 Bones (Resolved from live Player Il2CppClass) ──
-    inline uintptr_t Bone_Head                 = 0;
-    inline uintptr_t Bone_Breast               = 0;
-    inline uintptr_t Bone_Hip                  = 0;
-    inline uintptr_t Bone_Root                 = 0;
-    inline uintptr_t Bone_LeftToe              = 0;
-    inline uintptr_t Bone_RightToe             = 0;
-    inline uintptr_t Bone_LeftShoulder         = 0;
-    inline uintptr_t Bone_RightShoulder        = 0;
-    inline uintptr_t Bone_LeftHand             = 0;
-    inline uintptr_t Bone_RightHand            = 0;
-    inline uintptr_t Bone_LeftForeArm          = 0;
-    inline uintptr_t Bone_RightForeArm         = 0;
-    inline uintptr_t Bone_LeftAnkle            = 0;
-    inline uintptr_t Bone_RightAnkle           = 0;
+    inline uintptr_t Bone_Head                 = 0x6A0;
+    inline uintptr_t Bone_Breast               = 0x6B0;
+    inline uintptr_t Bone_Hip                  = 0x6A8;
+    inline uintptr_t Bone_Root                 = 0x6C8;
+    inline uintptr_t Bone_LeftToe              = 0x6E8;
+    inline uintptr_t Bone_RightToe             = 0x6F0;
+    inline uintptr_t Bone_LeftShoulder         = 0x708;
+    inline uintptr_t Bone_RightShoulder        = 0x710;
+    inline uintptr_t Bone_LeftHand             = 0x720;
+    inline uintptr_t Bone_RightHand            = 0x718;
+    inline uintptr_t Bone_LeftForeArm          = 0x730;
+    inline uintptr_t Bone_RightForeArm         = 0x728;
+    inline uintptr_t Bone_LeftAnkle            = 0x6D8;
+    inline uintptr_t Bone_RightAnkle           = 0x6E0;
 
     // Aliases
-    inline uintptr_t Head                      = 0;
-    inline uintptr_t Hip                       = 0;
-    inline uintptr_t Root                      = 0;
+    inline uintptr_t Head                      = 0x6A0;
+    inline uintptr_t Breast                    = 0x6B0;
+    inline uintptr_t Hip                       = 0x6A8;
+    inline uintptr_t Root                      = 0x6C8;
 
     // ── Loot ──
     inline uintptr_t MetaManager_DropObjects   = 0x18;

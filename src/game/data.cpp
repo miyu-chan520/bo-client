@@ -79,6 +79,7 @@ namespace data {
     // BONE → SCREEN
     // ========================================================================
     static Vector3 boneScreen(uint64_t player, uintptr_t offset) {
+        if (!offset) return Vector3::Zero();
         uint64_t node = rpm<uint64_t>(player + offset);
         if (!node) return Vector3::Zero();
         Vector3 w = GetNodePosition(node);
@@ -306,12 +307,27 @@ namespace data {
         }
 
         // ── PLAYERS ──
-        uint64_t dictAddr = rpm<uint64_t>(BaseGame + Offsets::Match_PlayerDict);
+        uint64_t dictAddr = 0;
+        if (Offsets::Match_PlayerDict >= 0x20) {
+            dictAddr = rpm<uint64_t>(BaseGame + Offsets::Match_PlayerDict);
+        }
+        if (!dictAddr) {
+            dictAddr = rpm<uint64_t>(BaseGame + 0xC0);
+        }
+        if (!dictAddr && m_Match) {
+            dictAddr = rpm<uint64_t>(m_Match + 0x148);
+        }
         if (!dictAddr) return;
 
         int32_t localTeam = rpm<int32_t>(localPlayer + Offsets::Player_TeamIndex);
 
         MonoDictionary dict(dictAddr);
+        if (!dict.valid && m_Match) {
+            uint64_t altDict = rpm<uint64_t>(m_Match + 0x148);
+            if (altDict) {
+                dict = MonoDictionary(altDict);
+            }
+        }
         if (!dict.valid) return;
 
         int nv = dict.getNumValues();
@@ -319,63 +335,53 @@ namespace data {
             uint64_t enemy = dict.entry(i);
             if (!enemy || enemy < 0x100000000 || enemy == localPlayer) continue;
 
-            if (rpm<bool>(enemy + Offsets::Player_IsDead)) continue;
+            // Only skip dead if offset is valid and flag is true
+            if (Offsets::Player_IsDead >= 0x20 && rpm<bool>(enemy + Offsets::Player_IsDead)) continue;
 
-            // Strict Teammate Filter (Never aimbot or ESP friendly teammates)
+            // Teammate Filter (Only filter if both have valid, positive matching teams)
             int32_t enemyTeam = rpm<int32_t>(enemy + Offsets::Player_TeamIndex);
-            if (localTeam >= 0 && enemyTeam >= 0 && localTeam == enemyTeam) continue;
+            if (localTeam > 0 && enemyTeam > 0 && localTeam == enemyTeam) continue;
 
             bool isBot = rpm<bool>(enemy + Offsets::Player_IsBot);
 
             int hp = readHP(enemy);
-            if (hp <= 0) continue;
+            if (hp <= 0) hp = 200; // Default fallback HP so alive entities are never skipped
 
-            auto avatarMgr = rpm<uint64_t>(enemy + Offsets::Player_Avatar);
-            if (!avatarMgr) continue;
-            auto uma = rpm<uint64_t>(avatarMgr + Offsets::Avatar_Uma);
-            if (!uma) continue;
-
-            bool rawVisible = rpm<bool>(uma + Offsets::Uma_Visible);
-
-            // Debounce visible
-            bool visible;
-            {
-                auto it = g_visStable.find(enemy);
-                if (it == g_visStable.end()) {
-                    g_visStable[enemy] = rawVisible;
-                    g_visCounter[enemy] = 0;
-                    visible = rawVisible;
-                } else if (it->second == rawVisible) {
-                    g_visCounter[enemy] = 0;
-                    visible = rawVisible;
-                } else {
-                    g_visCounter[enemy]++;
-                    if (g_visCounter[enemy] >= 2) {
-                        g_visStable[enemy] = rawVisible;
-                        g_visCounter[enemy] = 0;
-                        visible = rawVisible;
-                    } else {
-                        visible = it->second;
+            // Non-blocking Avatar & Visibility resolution
+            bool visible = true;
+            if (Offsets::Player_Avatar >= 0x20) {
+                auto avatarMgr = rpm<uint64_t>(enemy + Offsets::Player_Avatar);
+                if (avatarMgr && Offsets::Avatar_Uma >= 0x20) {
+                    auto uma = rpm<uint64_t>(avatarMgr + Offsets::Avatar_Uma);
+                    if (uma) {
+                        visible = rpm<bool>(uma + Offsets::Uma_Visible);
                     }
                 }
             }
 
-            // Team UmaData check fallback
-            auto umaData = rpm<uint64_t>(uma + Offsets::Uma_Data);
-            if (umaData && rpm<bool>(umaData + Offsets::UmaData_Skip)) continue;
+            // Head world position (with fallback to Root + 1.6m if Head is unavailable)
+            uintptr_t headOff = Offsets::Bone_Head ? Offsets::Bone_Head : 0x6A0;
+            uint64_t hNode = rpm<uint64_t>(enemy + headOff);
+            Vector3 headWorld = hNode ? GetNodePosition(hNode) : Vector3::Zero();
 
-            // Head world
-            uint64_t hNode = rpm<uint64_t>(enemy + Offsets::Bone_Head);
-            if (!hNode) continue;
-            Vector3 headWorld = GetNodePosition(hNode);
+            if (headWorld == Vector3::Zero()) {
+                uintptr_t rootOff = Offsets::Bone_Root ? Offsets::Bone_Root : 0x6C8;
+                uint64_t rNode = rpm<uint64_t>(enemy + rootOff);
+                if (rNode) {
+                    Vector3 rootWorld = GetNodePosition(rNode);
+                    if (rootWorld != Vector3::Zero()) {
+                        headWorld = rootWorld + Vector3(0.0f, 1.6f, 0.0f);
+                    }
+                }
+            }
             if (headWorld == Vector3::Zero()) continue;
 
             float dist = calculate_distance(localPos, headWorld);
             if (dist > cfg::esp::max_range) continue;
-            if (!visible && dist < 200.f) continue;
 
             Vector3 headScreen = WorldToScreenPoint(viewMatrix, headWorld);
-            Vector3 toeScreen  = boneScreen(enemy, Offsets::Bone_LeftToe);
+            uintptr_t toeOff = Offsets::Bone_LeftToe ? Offsets::Bone_LeftToe : 0x6E8;
+            Vector3 toeScreen  = boneScreen(enemy, toeOff);
 
             // Build
             PlayerData pd;
@@ -400,20 +406,20 @@ namespace data {
             Vector3 vel = rpm<Vector3>(enemy + Offsets::Player_Velocity);
             pd.speed = sqrtf(vel.x*vel.x + vel.y*vel.y + vel.z*vel.z);
 
-            // Bones
-            pd.Hip       = boneScreen(enemy, Offsets::Bone_Hip);
-            pd.Breast    = boneScreen(enemy, Offsets::Bone_Breast);
-            pd.Root      = boneScreen(enemy, Offsets::Bone_Root);
-            pd.LShoulder = boneScreen(enemy, Offsets::Bone_LeftShoulder);
-            pd.RShoulder = boneScreen(enemy, Offsets::Bone_RightShoulder);
-            pd.LAnkle    = boneScreen(enemy, Offsets::Bone_LeftAnkle);
-            pd.RAnkle    = boneScreen(enemy, Offsets::Bone_RightAnkle);
+            // 14 Bones mapped to screen
+            pd.Hip       = boneScreen(enemy, Offsets::Bone_Hip ? Offsets::Bone_Hip : 0x6A8);
+            pd.Breast    = boneScreen(enemy, Offsets::Bone_Breast ? Offsets::Bone_Breast : 0x6B0);
+            pd.Root      = boneScreen(enemy, Offsets::Bone_Root ? Offsets::Bone_Root : 0x6C8);
+            pd.LShoulder = boneScreen(enemy, Offsets::Bone_LeftShoulder ? Offsets::Bone_LeftShoulder : 0x708);
+            pd.RShoulder = boneScreen(enemy, Offsets::Bone_RightShoulder ? Offsets::Bone_RightShoulder : 0x710);
+            pd.LAnkle    = boneScreen(enemy, Offsets::Bone_LeftAnkle ? Offsets::Bone_LeftAnkle : 0x6D8);
+            pd.RAnkle    = boneScreen(enemy, Offsets::Bone_RightAnkle ? Offsets::Bone_RightAnkle : 0x6E0);
             pd.LToe      = toeScreen;
-            pd.RToe      = boneScreen(enemy, Offsets::Bone_RightToe);
-            pd.LForeArm  = boneScreen(enemy, Offsets::Bone_LeftForeArm);
-            pd.RForeArm  = boneScreen(enemy, Offsets::Bone_RightForeArm);
-            pd.LHand     = boneScreen(enemy, Offsets::Bone_LeftHand);
-            pd.RHand     = boneScreen(enemy, Offsets::Bone_RightHand);
+            pd.RToe      = boneScreen(enemy, Offsets::Bone_RightToe ? Offsets::Bone_RightToe : 0x6F0);
+            pd.LForeArm  = boneScreen(enemy, Offsets::Bone_LeftForeArm ? Offsets::Bone_LeftForeArm : 0x730);
+            pd.RForeArm  = boneScreen(enemy, Offsets::Bone_RightForeArm ? Offsets::Bone_RightForeArm : 0x728);
+            pd.LHand     = boneScreen(enemy, Offsets::Bone_LeftHand ? Offsets::Bone_LeftHand : 0x720);
+            pd.RHand     = boneScreen(enemy, Offsets::Bone_RightHand ? Offsets::Bone_RightHand : 0x718);
 
             tmp.push_back(pd);
         }

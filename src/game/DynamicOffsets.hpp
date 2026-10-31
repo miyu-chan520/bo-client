@@ -64,6 +64,29 @@ namespace DynamicOffsets {
         return ReadRemoteString(namePtr, outName, 64) && ReadRemoteString(nsPtr, outNs, 64);
     }
 
+    // Resolve base parent class in Il2CppClass hierarchy (probes standard Unity offsets)
+    inline uint64_t GetParentClass(uint64_t klass) {
+        if (!klass || klass < 0x100000000 || klass > 0x7fffffffff) return 0;
+        static int s_parentOffset = -1;
+        if (s_parentOffset >= 0) {
+            uint64_t p = rpm<uint64_t>(klass + s_parentOffset);
+            return (p >= 0x100000000 && p < 0x7fffffffff) ? p : 0;
+        }
+
+        // Test common Il2CppClass parent offsets: 0x48, 0x58, 0x50, 0x60, 0x68
+        for (int off : { 0x48, 0x58, 0x50, 0x60, 0x68, 0x40 }) {
+            uint64_t candidate = rpm<uint64_t>(klass + off);
+            if (candidate >= 0x100000000 && candidate < 0x7fffffffff) {
+                char pName[64] = {0}, pNs[64] = {0};
+                if (GetClassInfo(candidate, pName, pNs) && pName[0] != '\0') {
+                    s_parentOffset = off;
+                    return candidate;
+                }
+            }
+        }
+        return 0;
+    }
+
     // Dynamically locate FieldInfo* array pointer inside Il2CppClass
     // Verifies candidate[0].parent == klass to guarantee 100% correct pointer across Unity versions
     inline uint64_t GetFieldsArray(uint64_t klass) {
@@ -82,6 +105,7 @@ namespace DynamicOffsets {
     }
 
     // Dynamic field offset getter matching multiple candidate names (obfuscated + de-obfuscated)
+    // Walks class inheritance chain (klass -> parent -> grandparent) up to 6 levels deep.
     // FieldInfo stride = 0x20 (32 bytes) on ARM64:
     //   +0x00: name (const char*)
     //   +0x08: type
@@ -89,22 +113,32 @@ namespace DynamicOffsets {
     //   +0x18: offset (int32_t)
     inline int32_t GetFieldOffsetByNames(uint64_t klass, const std::vector<const char*>& candidates) {
         if (!klass || klass < 0x100000000 || klass > 0x7fffffffff) return -1;
-        uint64_t fieldsPtr = GetFieldsArray(klass);
-        if (!fieldsPtr || fieldsPtr < 0x100000000 || fieldsPtr > 0x7fffffffff) return -1;
 
-        for (int i = 0; i < 400; i++) {
-            uint64_t fieldStruct = fieldsPtr + (i * 0x20);
-            uint64_t namePtr = rpm<uint64_t>(fieldStruct + 0x00);
-            if (!namePtr || namePtr < 0x100000000 || namePtr > 0x7fffffffff) break;
+        uint64_t curClass = klass;
+        for (int depth = 0; depth < 6 && curClass >= 0x100000000 && curClass < 0x7fffffffff; depth++) {
+            uint64_t fieldsPtr = GetFieldsArray(curClass);
+            if (fieldsPtr >= 0x100000000 && fieldsPtr < 0x7fffffffff) {
+                int consecutiveNulls = 0;
+                for (int i = 0; i < 1200; i++) {
+                    uint64_t fieldStruct = fieldsPtr + (i * 0x20);
+                    uint64_t namePtr = rpm<uint64_t>(fieldStruct + 0x00);
+                    if (!namePtr || namePtr < 0x100000000 || namePtr > 0x7fffffffff) {
+                        if (++consecutiveNulls > 10) break;
+                        continue;
+                    }
+                    consecutiveNulls = 0;
 
-            char fName[64];
-            if (ReadRemoteString(namePtr, fName, sizeof(fName))) {
-                for (const char* targetName : candidates) {
-                    if (strcmp(fName, targetName) == 0) {
-                        return rpm<int32_t>(fieldStruct + 0x18);
+                    char fName[64];
+                    if (ReadRemoteString(namePtr, fName, sizeof(fName))) {
+                        for (const char* targetName : candidates) {
+                            if (strcmp(fName, targetName) == 0) {
+                                return rpm<int32_t>(fieldStruct + 0x18);
+                            }
+                        }
                     }
                 }
             }
+            curClass = GetParentClass(curClass);
         }
         return -1;
     }
@@ -215,26 +249,35 @@ namespace DynamicOffsets {
         uint64_t matchGameClass = rpm<uint64_t>(baseGame + 0x0);
         if (!matchGameClass || matchGameClass < 0x100000000) return false;
 
+        // 1. Resolve fields declared directly on MatchGame (BaseGame)
         int32_t offMatch = GetFieldOffsetByNames(matchGameClass, {"m_Match", "Match"});
         if (offMatch >= 0) {
             Offsets::BaseGame_Match = (uintptr_t)offMatch;
         }
 
+        int32_t offDict = GetFieldOffsetByNames(matchGameClass, {"m_ReplicationEntitis", "m_LReplicationEntitis", "PlayerDict", "ReplicationEntities"});
+        if (offDict >= 0) {
+            Offsets::Match_PlayerDict = (uintptr_t)offDict;
+        }
+
+        int32_t offMeta = GetFieldOffsetByNames(matchGameClass, {"m_MetaManager", "MetaManager"});
+        if (offMeta >= 0) {
+            Offsets::Match_MetaManager = (uintptr_t)offMeta;
+        }
+
+        // 2. Resolve fields declared on Match (JMAGGLCNGIG)
         uint64_t m_Match = rpm<uint64_t>(baseGame + Offsets::BaseGame_Match);
         if (!m_Match || m_Match < 0x100000000) return true;
 
         uint64_t matchClass = rpm<uint64_t>(m_Match + 0x0);
         if (!matchClass || matchClass < 0x100000000) return true;
 
-        int32_t offDict  = GetFieldOffsetByNames(matchClass, {"m_ReplicationEntitis", "PlayerDict", "ReplicationEntities"});
         int32_t offLocal = GetFieldOffsetByNames(matchClass, {"MHJCLOPOBAA", "LocalPlayer", "m_LocalPlayer"});
-        int32_t offMeta  = GetFieldOffsetByNames(matchClass, {"m_MetaManager", "MetaManager"});
+        if (offLocal >= 0) {
+            Offsets::Match_LocalPlayer = (uintptr_t)offLocal;
+        }
 
-        if (offDict >= 0)  Offsets::Match_PlayerDict  = (uintptr_t)offDict;
-        if (offLocal >= 0) Offsets::Match_LocalPlayer = (uintptr_t)offLocal;
-        if (offMeta >= 0)  Offsets::Match_MetaManager = (uintptr_t)offMeta;
-
-        DO_LOGI("[✓] Match chain: Match=0x%lx, Dict=0x%lx, Local=0x%lx, Meta=0x%lx",
+        DO_LOGI("[✓] Match chain resolved: Match=0x%lx, Dict=0x%lx, Local=0x%lx, Meta=0x%lx",
                 (unsigned long)Offsets::BaseGame_Match,
                 (unsigned long)Offsets::Match_PlayerDict,
                 (unsigned long)Offsets::Match_LocalPlayer,
@@ -349,6 +392,9 @@ namespace DynamicOffsets {
         int32_t offColWrite = GetFieldOffsetByNames(playerClass, {"<AONPKGBGHHI>k__BackingField", "ColWrite", "m_Collider"});
         if (offColWrite >= 0) Offsets::Player_ColWrite = (uintptr_t)offColWrite;
 
+        int32_t offHP = GetFieldOffsetByNames(playerClass, {"m_PRIDataPool", "PRIDataPool", "m_HP"});
+        if (offHP >= 0) Offsets::Player_HP = (uintptr_t)offHP;
+
         int32_t offArmor = GetFieldOffsetByNames(playerClass, {"m_Armor", "Armor", "curArmor"});
         if (offArmor >= 0) Offsets::Player_Armor = (uintptr_t)offArmor;
 
@@ -358,9 +404,10 @@ namespace DynamicOffsets {
         int32_t offGround = GetFieldOffsetByNames(playerClass, {"m_IsGrounded", "IsGrounded"});
         if (offGround >= 0) Offsets::Player_IsGrounded = (uintptr_t)offGround;
 
-        Offsets::Head = Offsets::Bone_Head;
-        Offsets::Hip  = Offsets::Bone_Hip;
-        Offsets::Root = Offsets::Bone_Root;
+        Offsets::Head   = Offsets::Bone_Head;
+        Offsets::Breast = Offsets::Bone_Breast;
+        Offsets::Hip    = Offsets::Bone_Hip;
+        Offsets::Root   = Offsets::Bone_Root;
 
         // Dynamic FollowCamera child fields
         uint64_t followCam = rpm<uint64_t>(playerAddr + Offsets::Player_Camera);
