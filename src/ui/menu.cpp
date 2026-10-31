@@ -28,7 +28,6 @@ namespace ui::menu {
     static ImVec2 g_menu_pos(-1.f, -1.f);
 
     static constexpr float R  = 10.f;
-    static constexpr float Rt = 6.f;
 
     // Typography
     static constexpr float FONT_TITLE   = 16.f;
@@ -36,7 +35,7 @@ namespace ui::menu {
     static constexpr float FONT_SEC     = 13.f;
     static constexpr float FONT_HINT    = 12.f;
 
-    // Toast status for Save/Load/Reset operations
+    // Status toast for Save / Load
     static std::string s_saveStatus;
     static float s_saveStatusTimer = 0.f;
 
@@ -103,9 +102,7 @@ namespace ui::menu {
             std::string key = std::string(id)+"#t";
             float on = NS_Anim(key+"on", *value ? 1.f : 0.f, 16.f);
 
-            if (hover) {
-                dl->AddRectFilled(pos, {pos.x+avail, pos.y+h}, C_BgCardHov(), 4.f);
-            }
+            if (hover) dl->AddRectFilled(pos, {pos.x+avail, pos.y+h}, C_BgCardHov(), 4.f);
 
             dl->AddText(ImGui::GetFont(), FONT_MAIN, {pos.x+8, pos.y+6}, C_TextMain(), label);
             if (desc) {
@@ -194,37 +191,38 @@ namespace ui::menu {
     }
 
     // ============================================
-    // FLOATING ACTION HUD ("Nút nôi đàng hoàng như của lib")
+    // FLOATING ACTION HUD BUTTONS (Interactive On-Screen Controls)
     // ============================================
     static void RenderFloatingHud() {
-        if (!cfg::floating_hud::show_buttons) return;
-
         ImDrawList* dl = ImGui::GetForegroundDrawList();
         if (!dl) return;
 
         struct HudBtn {
             const char* id;
             const char* title;
-            bool* toggle;
+            bool* toggleFeature;
+            bool* showInHud;
             float* px;
             float* py;
             ImU32 activeCol;
         };
 
         HudBtn buttons[] = {
-            { "hud_ghost",    "GHOST",      &cfg::ghost::enable,     &cfg::floating_hud::pos_ghost_x,     &cfg::floating_hud::pos_ghost_y,     IM_COL32(52, 199, 89, 230) },
-            { "hud_aimkill",  "AIMKILL",    &cfg::aimkill::enable,   &cfg::floating_hud::pos_aimkill_x,   &cfg::floating_hud::pos_aimkill_y,   IM_COL32(255, 69, 58, 230) },
-            { "hud_telemark", "TELEMARK",   &cfg::telemark::enable,  &cfg::floating_hud::pos_telemark_x,  &cfg::floating_hud::pos_telemark_y,  IM_COL32(0, 122, 255, 230) },
-            { "hud_speed",    "SPEEDTIME",  &cfg::speedtime::enable, &cfg::floating_hud::pos_speedtime_x, &cfg::floating_hud::pos_speedtime_y, IM_COL32(255, 149, 0, 230) }
+            { "f_ghost",    "GHOST",      &cfg::ghost::enable,     &cfg::floating_hud::show_ghost,     &cfg::floating_hud::pos_ghost_x,     &cfg::floating_hud::pos_ghost_y,     IM_COL32(52, 199, 89, 230) },
+            { "f_aimkill",  "AIMKILL",    &cfg::aimkill::enable,   &cfg::floating_hud::show_aimkill,   &cfg::floating_hud::pos_aimkill_x,   &cfg::floating_hud::pos_aimkill_y,   IM_COL32(255, 69, 58, 230) },
+            { "f_telemark", "TELEMARK",   &cfg::telemark::enable,  &cfg::floating_hud::show_telemark,  &cfg::floating_hud::pos_telemark_x,  &cfg::floating_hud::pos_telemark_y,  IM_COL32(0, 122, 255, 230) },
+            { "f_speed",    "SPEEDTIME",  &cfg::speedtime::enable, &cfg::floating_hud::show_speedtime, &cfg::floating_hud::pos_speedtime_x, &cfg::floating_hud::pos_speedtime_y, IM_COL32(255, 149, 0, 230) }
         };
 
-        const float btnW = 90.f;
-        const float btnH = 38.f;
+        const float btnW = 96.f;
+        const float btnH = 40.f;
         ImVec2 mp = ImGui::GetMousePos();
 
         for (auto& b : buttons) {
+            // Only draw if enabled from Main Menu
+            if (!*b.showInHud) continue;
+
             ImVec2 pos(*b.px, *b.py);
-            // Clamp on-screen
             pos.x = ImClamp(pos.x, 10.f, g_sw - btnW - 10.f);
             pos.y = ImClamp(pos.y, 10.f, g_sh - btnH - 10.f);
             *b.px = pos.x;
@@ -233,7 +231,6 @@ namespace ui::menu {
             bool hover = (mp.x >= pos.x && mp.x <= pos.x + btnW &&
                           mp.y >= pos.y && mp.y <= pos.y + btnH);
 
-            // Handle Dragging
             static std::string s_activeDrag = "";
             static ImVec2 s_dragOffset(0, 0);
 
@@ -248,72 +245,65 @@ namespace ui::menu {
                     *b.py = ImClamp(mp.y - s_dragOffset.y, 10.f, g_sh - btnH - 10.f);
                     pos = ImVec2(*b.px, *b.py);
                 } else {
-                    // Click toggle if didn't drag far
                     s_activeDrag = "";
                 }
             }
 
-            // Click handling
             ImGui::SetCursorScreenPos(pos);
             ImGui::PushID(b.id);
-            if (ImGui::InvisibleButton("hbtn", {btnW, btnH})) {
-                *b.toggle = !*b.toggle;
+            if (ImGui::InvisibleButton("btn_action", {btnW, btnH})) {
+                *b.toggleFeature = !*b.toggleFeature;
             }
             ImGui::PopID();
 
-            // Render Button Aesthetics
-            bool active = *b.toggle;
-            ImU32 bgCol = active ? b.activeCol : IM_COL32(32, 32, 40, 210);
-            ImU32 borderCol = active ? IM_COL32(255, 255, 255, 220) : IM_COL32(70, 70, 85, 180);
+            bool active = *b.toggleFeature;
+            ImU32 bgCol = active ? b.activeCol : IM_COL32(28, 28, 36, 220);
+            ImU32 borderCol = active ? IM_COL32(255, 255, 255, 240) : IM_COL32(65, 65, 80, 180);
 
             dl->AddRectFilled(pos, {pos.x + btnW, pos.y + btnH}, bgCol, 8.f);
             dl->AddRect(pos, {pos.x + btnW, pos.y + btnH}, borderCol, 8.f, 0, 1.5f);
 
-            // Button Text
             float tw = ImGui::CalcTextSize(b.title).x;
             float th = ImGui::CalcTextSize(b.title).y;
             dl->AddText(ImGui::GetFont(), FONT_MAIN,
-                {pos.x + (btnW - tw)*0.5f, pos.y + (btnH - th)*0.5f - 2.f},
+                {pos.x + (btnW - tw)*0.5f, pos.y + (btnH - th)*0.5f - 1.f},
                 IM_COL32(255, 255, 255, 255), b.title);
 
-            // Small status dot
-            ImU32 dotCol = active ? IM_COL32(255, 255, 255, 255) : IM_COL32(140, 140, 150, 160);
-            dl->AddCircleFilled({pos.x + btnW - 8.f, pos.y + 8.f}, 3.f, dotCol);
+            ImU32 dotCol = active ? IM_COL32(255, 255, 255, 255) : IM_COL32(120, 120, 130, 180);
+            dl->AddCircleFilled({pos.x + btnW - 8.f, pos.y + 8.f}, 3.5f, dotCol);
         }
     }
 
     // ============================================
-    // TAB 0: COMBAT & AIMBOT
+    // TAB 0: COMBAT (Aimbot & AimKill)
     // ============================================
     static void tab_combat(float a) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         float cw = ImGui::GetContentRegionAvail().x;
 
-        // ── Aimbot Card ──
-        float card1H = 240.f;
+        float card1H = 220.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Aimbot Core", "Targeting");
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Aimbot", "Targeting Engine");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
-        NS_Toggle("aim_en", "Enable Aimbot", &cfg::aim::enable, "Master switch targeting ray");
-        NS_Toggle("aim_vis", "Check Visible", &cfg::aim::aim_visible, "Bỏ qua kẻ địch núp sau tường");
-        NS_Toggle("aim_knk", "Bỏ Qua Kẻ Địch Gục", &cfg::aim::ignore_knocked, "Không khóa tâm vào người đã bị gục");
-        NS_Toggle("aim_lock", "Aim Lock (Camera)", &cfg::aim::aim_lock, "Tự bẻ góc nhìn vào mục tiêu");
+        NS_Toggle("aim_en", "Enable Aimbot", &cfg::aim::enable, "Master combat targeting override");
+        NS_Toggle("aim_lock", "Camera Aim Lock", &cfg::aim::aim_lock, "Align player view angle towards target");
+        NS_Toggle("aim_vis", "Visible Check Only", &cfg::aim::aim_visible, "Skip targets obstructed by walls");
+        NS_Toggle("aim_knk", "Ignore Knocked Enemies", &cfg::aim::ignore_knocked, "Skip knocked down / dying players");
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+14});
         ImGui::Dummy({0,0});
 
-        // ── AimKill (10ms) & Under Kill Card ──
-        float card2H = 230.f;
+        float card2H = 240.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
         NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, "AimKill & Under Kill", "Exploits");
         ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
-        NS_Toggle("ak_en", "AimKill (Giới Hạn 10ms)", &cfg::aimkill::enable, "Xả sát thương tức thì (kẹp delay 10ms)");
-        NS_Toggle("uk_en", "Under Kill", &cfg::underkill::enable, "Dìm vector đạn ngầm dưới sàn xuyên vật cản");
-        NS_SliderFloat("uk_depth", "Độ Sâu Under Kill", &cfg::underkill::depth_offset, 1.0f, 5.0f, "%.1fm");
+        NS_Toggle("ak_en", "AimKill (10ms Limit)", &cfg::aimkill::enable, "Instant lethal head hit dispatch (clamped to 10ms)");
+        NS_Toggle("uk_en", "Under Kill", &cfg::underkill::enable, "Adjust bullet trajectory below ground level");
+        NS_SliderFloat("uk_depth", "Under Kill Depth", &cfg::underkill::depth_offset, 1.0f, 5.0f, "%.1fm");
         NS_SliderFloat("aim_fov", "Aim FOV Radius", &cfg::aim::fov, 30.f, 360.f, "%.0f px");
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+14});
@@ -321,7 +311,43 @@ namespace ui::menu {
     }
 
     // ============================================
-    // TAB 1: EXPLOITS & MOVEMENT
+    // TAB 1: ESP (BO Client Visuals Preserved)
+    // ============================================
+    static void tab_esp(float a) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        float cw = ImGui::GetContentRegionAvail().x;
+
+        float card1H = 260.f;
+        ImVec2 cp = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp, cw, card1H);
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Player ESP", "Visuals");
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
+
+        NS_Toggle("esp_box", "2D Bounding Box", &cfg::esp::box, "Draw player bounding box");
+        NS_Toggle("esp_name", "Player Name", &cfg::esp::name, "Display player nicknames");
+        NS_Toggle("esp_hp", "Health & Armor Bar", &cfg::esp::health, "Display HP bar (alive players only)");
+        NS_Toggle("esp_dist", "Distance", &cfg::esp::distance, "Display distance in meters");
+        NS_Toggle("esp_tracer", "Snapline / Tracer", &cfg::esp::tracer, "Draw tracer line to player");
+
+        ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+14});
+        ImGui::Dummy({0,0});
+
+        float card2H = 190.f;
+        ImVec2 cp2 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp2, cw, card2H);
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, "Radar & Settings", "HUD");
+        ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
+
+        NS_Toggle("esp_radar", "360 Threat Radar", &cfg::esp::offscreen_radar, "Off-screen threat directional indicators");
+        NS_Toggle("esp_dot", "Head Dot Point", &cfg::esp::head_dot, "Draw dot indicator on player head");
+        NS_SliderFloat("esp_range", "Maximum Range", &cfg::esp::max_range, 50.f, 400.f, "%.0fm");
+
+        ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+14});
+        ImGui::Dummy({0, 30});
+    }
+
+    // ============================================
+    // TAB 2: EXPLOITS & MOVEMENT
     // ============================================
     static void tab_exploits(float a) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -330,52 +356,92 @@ namespace ui::menu {
         float card1H = 260.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Movement & Weapon Exploits", "Gameplay");
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Movement & Weapon Exploits", "Mechanics");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
-        NS_Toggle("gh_en", "Ghost Mode (Desync)", &cfg::ghost::enable, "Ngắt gửi gói tin di chuyển / tàng hình");
-        NS_Toggle("nr_en", "Non-Recoil (Không Giật)", &cfg::nonrecoil::enable, "Triệt tiêu độ giật và độ tản đạn của súng");
-        NS_Toggle("tm_en", "Auto TeleMark", &cfg::telemark::enable, "Dịch chuyển tức thời đến tọa độ mục tiêu");
-        NS_Toggle("st_en", "Speed Time (Tốc Độ)", &cfg::speedtime::enable, "Gia tốc thời gian engine / di chuyển nhanh");
-        NS_SliderFloat("st_scale", "Hệ Số Speed Time", &cfg::speedtime::scale, 1.0f, 5.0f, "%.1fx");
+        NS_Toggle("gh_en", "Ghost Mode", &cfg::ghost::enable, "Desync player state / packet freeze");
+        NS_Toggle("nr_en", "Non-Recoil", &cfg::nonrecoil::enable, "Zero bullet spread and weapon recoil");
+        NS_Toggle("tm_en", "Auto TeleMark", &cfg::telemark::enable, "Teleport directly behind target player");
+        NS_Toggle("st_en", "Speed Time", &cfg::speedtime::enable, "Engine timescale velocity acceleration");
+        NS_SliderFloat("st_scale", "Speed Multiplier", &cfg::speedtime::scale, 1.0f, 5.0f, "%.1fx");
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+14});
         ImGui::Dummy({0, 30});
     }
 
     // ============================================
-    // TAB 2: BYPASS & FLOATING HUD
+    // TAB 3: FLOATING ACTION HUD BUTTONS ("Nút Nổi")
     // ============================================
-    static void tab_bypass(float a) {
+    static void tab_floating_hud(float a) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         float cw = ImGui::GetContentRegionAvail().x;
 
         float card1H = 260.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Bypass & Nút Nổi", "Security");
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "On-Screen Action Buttons", "Floating HUD");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
-        NS_Toggle("bp_en", "Master Security Bypass", &cfg::bypass::enable, "Kích hoạt toàn bộ bộ lọc anti-cheat");
-        NS_Toggle("bp_libc", "Libc Cloaking (/proc/self/maps)", &cfg::bypass::libc_stealth, "Ẩn module và chặn process_vm_readv");
-        NS_Toggle("bp_tele", "Suppress Telemetry Logs", &cfg::bypass::telemetry_nullify, "Triệt tiêu SendEventLogJson & MSDK");
-        NS_Toggle("hud_btn", "Nút Nổi Điều Khiển Nhanh (HUD)", &cfg::floating_hud::show_buttons, "Hiển thị 4 nút Ghost, AimKill, Tele, Speed trên màn hình");
+        NS_Toggle("hud_gh", "Show [GHOST] Button", &cfg::floating_hud::show_ghost, "Display floating Ghost button on HUD");
+        NS_Toggle("hud_ak", "Show [AIMKILL] Button", &cfg::floating_hud::show_aimkill, "Display floating AimKill button on HUD");
+        NS_Toggle("hud_tm", "Show [TELEMARK] Button", &cfg::floating_hud::show_telemark, "Display floating TeleMark button on HUD");
+        NS_Toggle("hud_st", "Show [SPEEDTIME] Button", &cfg::floating_hud::show_speedtime, "Display floating SpeedTime button on HUD");
+
+        ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+14});
+        ImGui::Dummy({0,0});
+
+        float card2H = 110.f;
+        ImVec2 cp2 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp2, cw, card2H);
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, "Position Reset", "Controls");
+        ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
+
+        if (NS_Button("rst_pos", "Reset Button Positions", {200, 34}, false)) {
+            cfg::floating_hud::pos_ghost_x     = 80.f;  cfg::floating_hud::pos_ghost_y     = 240.f;
+            cfg::floating_hud::pos_aimkill_x   = 80.f;  cfg::floating_hud::pos_aimkill_y   = 310.f;
+            cfg::floating_hud::pos_telemark_x  = 80.f;  cfg::floating_hud::pos_telemark_y  = 380.f;
+            cfg::floating_hud::pos_speedtime_x = 80.f;  cfg::floating_hud::pos_speedtime_y = 450.f;
+        }
+
+        ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+14});
+        ImGui::Dummy({0, 30});
+    }
+
+    // ============================================
+    // TAB 4: BYPASS & SYSTEM
+    // ============================================
+    static void tab_bypass(float a) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        float cw = ImGui::GetContentRegionAvail().x;
+
+        float card1H = 220.f;
+        ImVec2 cp = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp, cw, card1H);
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Anti-Cheat Protection", "Bypass");
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
+
+        NS_Toggle("bp_en", "Master Bypass Engine", &cfg::bypass::enable, "External anti-cheat filter");
+        NS_Toggle("bp_libc", "Libc Cloaking (/proc/self/maps)", &cfg::bypass::libc_stealth, "Mask module memory segments");
+        NS_Toggle("bp_tele", "Suppress Telemetry Logs", &cfg::bypass::telemetry_nullify, "Block SendEventLogJson & MSDK");
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+14});
         ImGui::Dummy({0, 30});
     }
 
     // ============================================
-    // MAIN RENDER
+    // MAIN RENDER LOOP
     // ============================================
     void render() {
         float dt = ImGui::GetIO().DeltaTime;
         aimbot::TickTimer(dt > 0.f ? dt : 0.016f);
 
-        // Render In-game Floating HUD Buttons (Nút nổi điều khiển nhanh)
+        // Draw BO Client ESP
+        func::esp::draw();
+
+        // Render On-Screen Floating Action HUD Buttons
         RenderFloatingHud();
 
-        // Overlay Navigation Bar
+        // Overlay Navigation Trigger Bar
         bar::render();
 
         ma = ma + ((bar::g_open ? 1.f : 0.f) - ma) * ImClamp(12.f*dt, 0.f, 1.f);
@@ -396,7 +462,7 @@ namespace ui::menu {
         ImGui::PushStyleColor(ImGuiCol_Border, {0,0,0,0});
 
         float targetW = ImMin(880.f, (g_sw > 300.f) ? (g_sw - 30.f) : 880.f);
-        float targetH = ImMin(580.f, (g_sh > 300.f) ? (g_sh - 30.f) : 580.f);
+        float targetH = ImMin(600.f, (g_sh > 300.f) ? (g_sh - 30.f) : 600.f);
         ImVec2 wsz(targetW, targetH);
         if (g_menu_pos.x < 0.f || g_menu_pos.y < 0.f) {
             g_menu_pos = {(g_sw - wsz.x) * 0.5f, (g_sh - wsz.y) * 0.5f};
@@ -418,14 +484,14 @@ namespace ui::menu {
         bg->AddRect(wp, {wp.x+ws.x, wp.y+ws.y}, col(UITheme::border, ma), R);
 
         const float headerH = 56.f;
-        const float sidebarW = 150.f;
+        const float sidebarW = 160.f;
         const float footerH = 48.f;
 
         // Header
         bg->AddRectFilled(wp, {wp.x+ws.x, wp.y+headerH}, col(UITheme::sidebar, ma), R, ImDrawFlags_RoundCornersTop);
         bg->AddLine({wp.x, wp.y+headerH}, {wp.x+ws.x, wp.y+headerH}, col(UITheme::border, ma), 1.f);
 
-        dl->AddText(ImGui::GetFont(), FONT_TITLE + 1.f, {wp.x + 20.f, wp.y + 16.f}, col(UITheme::text, ma), "BO CLIENT · LIBMAIN VIP");
+        dl->AddText(ImGui::GetFont(), FONT_TITLE + 1.f, {wp.x + 20.f, wp.y + 16.f}, col(UITheme::text, ma), "BO CLIENT · VIP EXTERNAL");
 
         // Close button
         float closeW = 32.f;
@@ -443,19 +509,19 @@ namespace ui::menu {
         bg->AddRectFilled({wp.x, sbY}, {wp.x+sidebarW, sbBot}, col(UITheme::sidebar, ma));
         bg->AddLine({wp.x+sidebarW, sbY}, {wp.x+sidebarW, sbBot}, col(UITheme::border, ma), 1.f);
 
-        const char* tabTitles[] = { "Combat / Aim", "Exploits", "Bypass & HUD" };
-        for (int i = 0; i < 3; i++) {
-            float ny = sbY + 16.f + i * 46.f;
+        const char* tabTitles[] = { "Combat / Aim", "Visuals / ESP", "Exploits", "Floating HUD", "Bypass" };
+        for (int i = 0; i < 5; i++) {
+            float ny = sbY + 14.f + i * 44.f;
             bool act = (tab == i);
             if (act) {
-                bg->AddRectFilled({wp.x, ny}, {wp.x+sidebarW, ny+40.f}, col(UITheme::accent, ma * 0.25f));
-                bg->AddRectFilled({wp.x, ny}, {wp.x+4.f, ny+40.f}, col(UITheme::accent, ma));
+                bg->AddRectFilled({wp.x, ny}, {wp.x+sidebarW, ny+38.f}, col(UITheme::accent, ma * 0.25f));
+                bg->AddRectFilled({wp.x, ny}, {wp.x+4.f, ny+38.f}, col(UITheme::accent, ma));
             }
-            dl->AddText(ImGui::GetFont(), FONT_MAIN, {wp.x+20.f, ny+10.f},
+            dl->AddText(ImGui::GetFont(), FONT_MAIN, {wp.x+18.f, ny+10.f},
                         act ? col(UITheme::text, ma) : col(UITheme::text_dim, ma), tabTitles[i]);
             ImGui::SetCursorScreenPos({wp.x, ny});
             ImGui::PushID(i+500);
-            if (ImGui::InvisibleButton("nav", {sidebarW, 40.f})) tab = i;
+            if (ImGui::InvisibleButton("nav", {sidebarW, 38.f})) tab = i;
             ImGui::PopID();
         }
 
@@ -472,8 +538,10 @@ namespace ui::menu {
 
         switch (tab) {
             case 0: tab_combat(ma); break;
-            case 1: tab_exploits(ma); break;
-            case 2: tab_bypass(ma); break;
+            case 1: tab_esp(ma); break;
+            case 2: tab_exploits(ma); break;
+            case 3: tab_floating_hud(ma); break;
+            case 4: tab_bypass(ma); break;
         }
 
         ImGui::EndChild();
@@ -484,16 +552,28 @@ namespace ui::menu {
         bg->AddLine({wp.x, fy}, {wp.x+ws.x, fy}, col(UITheme::border, ma), 1.f);
 
         ImGui::SetCursorScreenPos({wp.x + 18.f, fy + 8.f});
-        if (NS_Button("f_save", "Save", {85, 32}, true)) {
+        if (NS_Button("f_save", "Save Config", {95, 32}, true)) {
             cfg::save();
-            s_saveStatus = "Saved!";
+            s_saveStatus = "Config Saved!";
             s_saveStatusTimer = 3.f;
         }
         ImGui::SameLine(0, 8);
-        if (NS_Button("f_load", "Load", {85, 32}, false)) {
+        if (NS_Button("f_load", "Load Config", {95, 32}, false)) {
             cfg::load();
-            s_saveStatus = "Loaded!";
+            s_saveStatus = "Config Loaded!";
             s_saveStatusTimer = 3.f;
+        }
+        ImGui::SameLine(0, 8);
+        if (NS_Button("f_reset", "Reset All", {90, 32}, false)) {
+            cfg::reset_defaults();
+            s_saveStatus = "Defaults Reset!";
+            s_saveStatusTimer = 3.f;
+        }
+
+        if (s_saveStatusTimer > 0.f) {
+            ImGui::SameLine(0, 12);
+            dl->AddText(ImGui::GetFont(), FONT_MAIN, {wp.x + 320.f, fy + 16.f}, C_Success(), s_saveStatus.c_str());
+            s_saveStatusTimer -= dt;
         }
 
         // Window drag handling

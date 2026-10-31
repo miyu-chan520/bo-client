@@ -335,17 +335,26 @@ namespace data {
             uint64_t enemy = dict.entry(i);
             if (!enemy || enemy < 0x100000000 || enemy == localPlayer) continue;
 
-            // Only skip dead if offset is valid and flag is true
-            if (Offsets::Player_IsDead >= 0x20 && rpm<bool>(enemy + Offsets::Player_IsDead)) continue;
+            // Filter: Only include players with HP > 0 and not dead
+            bool isDead = false;
+            if (Offsets::Player_IsDead >= 0x20) {
+                isDead = rpm<bool>(enemy + Offsets::Player_IsDead);
+            }
+            if (isDead) continue;
+
+            int hp = readHP(enemy);
+            if (hp <= 0) continue; // Only players with > 0 HP
+
+            bool isKnocked = false;
+            if (Offsets::Player_IsKnocked >= 0x20) {
+                isKnocked = rpm<bool>(enemy + Offsets::Player_IsKnocked);
+            }
 
             // Teammate Filter (Only filter if both have valid, positive matching teams)
             int32_t enemyTeam = rpm<int32_t>(enemy + Offsets::Player_TeamIndex);
             if (localTeam > 0 && enemyTeam > 0 && localTeam == enemyTeam) continue;
 
             bool isBot = rpm<bool>(enemy + Offsets::Player_IsBot);
-
-            int hp = readHP(enemy);
-            if (hp <= 0) hp = 200; // Default fallback HP so alive entities are never skipped
 
             // Non-blocking Avatar & Visibility resolution
             bool visible = true;
@@ -395,6 +404,8 @@ namespace data {
             pd.Head       = headScreen;
             pd.Toe        = toeScreen;
             pd.isVisible  = visible;
+            pd.isKnocked  = isKnocked;
+            pd.isDead     = isDead;
             pd.isBot      = isBot;
             pd.distance   = dist;
             pd.curHP      = hp;

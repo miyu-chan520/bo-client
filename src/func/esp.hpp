@@ -576,6 +576,7 @@ namespace func::esp {
 
         for (const auto& p : snap) {
             if (p.isTeammate) continue;
+            if (p.curHP <= 0 || p.isDead) continue;
             if (p.distance > cfg::esp::max_range) continue;
 
             // KZ 360 Off-Screen Threat Radar

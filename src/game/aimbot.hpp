@@ -35,7 +35,6 @@ namespace aimbot {
         int32_t  hitGroup = 0;
     };
 
-    // Touch tracker for responsive aim assistance
     inline std::atomic<bool> s_touching_aim_area{false};
 
     inline void NotifyTouch(bool isDown, float deltaY) {
@@ -52,24 +51,23 @@ namespace aimbot {
 
     static inline void Init() {}
 
-    // Track last AimKill execution to enforce strict 10ms minimum interval
+    // Strict 10ms minimum interval tracker for AimKill
     inline std::chrono::steady_clock::time_point s_lastAimKillTime = std::chrono::steady_clock::now();
 
     // ========================================================================
-    // MAIN AIMBOT & EXPLOIT TICK
+    // MAIN EXTERNAL AIMBOT & EXPLOIT TICK (Zero Corruption / Crash-Proof)
     // ========================================================================
     inline void Update(uint64_t localAddr, const Vector3& localPos, const Vector3& cameraPos) {
-        if (!localAddr) return;
+        if (!localAddr || localAddr < 0x100000000 || localAddr > 0x7fffffffff) return;
 
         // ════════════════════════════════════════════════════════════════════
-        // 1. NON-RECOIL (Triệt tiêu độ giật & độ tản đạn)
+        // 1. NON-RECOIL (External Zero-Recoil & Spread Clamping)
         // ════════════════════════════════════════════════════════════════════
-        if (cfg::nonrecoil::enable) {
+        if (cfg::nonrecoil::enable && Offsets::Player_Weapon >= 0x20) {
             uint64_t weapon = rpm<uint64_t>(localAddr + Offsets::Player_Weapon);
-            if (weapon) {
+            if (weapon >= 0x100000000 && weapon <= 0x7fffffffff) {
                 uint64_t wData = rpm<uint64_t>(weapon + Offsets::Weapon_Data);
-                if (wData) {
-                    // Zero out recoil pitch, yaw, and spread growth
+                if (wData >= 0x100000000 && wData <= 0x7fffffffff) {
                     wpm<float>(wData + 0x88, 0.0f); // Recoil Pitch Min
                     wpm<float>(wData + 0x8C, 0.0f); // Recoil Pitch Max
                     wpm<float>(wData + 0x90, 0.0f); // Recoil Yaw Min
@@ -80,20 +78,20 @@ namespace aimbot {
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // 2. SPEED TIME (Timescale Engine Acceleration)
+        // 2. SPEED TIME (Velocity Multiplier)
         // ════════════════════════════════════════════════════════════════════
-        if (cfg::speedtime::enable && cfg::speedtime::scale > 1.0f) {
-            // Apply speed multiplier to player movement velocity
+        if (cfg::speedtime::enable && cfg::speedtime::scale > 1.0f && Offsets::Player_Velocity >= 0x20) {
             Vector3 vel = rpm<Vector3>(localAddr + Offsets::Player_Velocity);
-            if (vel.sqrMagnitude() > 0.01f) {
+            if (vel.sqrMagnitude() > 0.01f && vel.sqrMagnitude() < 10000.f) {
                 wpm<Vector3>(localAddr + Offsets::Player_Velocity, vel * cfg::speedtime::scale);
             }
         }
 
-        if (ui::bar::g_open || !cfg::aim::enable) return;
+        // If menu is open or aimbot/aimkill are both off, do not perform targeting
+        if (ui::bar::g_open || (!cfg::aim::enable && !cfg::aimkill::enable)) return;
 
         // ════════════════════════════════════════════════════════════════════
-        // 3. TARGET SEARCH (Check Visible & Bỏ Qua Kẻ Địch Gục)
+        // 3. TARGET SEARCH (Check Visible & Ignore Knocked Enemies)
         // ════════════════════════════════════════════════════════════════════
         float screenCx = g_sw * 0.5f;
         float screenCy = g_sh * 0.5f;
@@ -107,12 +105,16 @@ namespace aimbot {
                 if (!p.addr || p.addr == localAddr) continue;
                 if (p.isTeammate) continue;
 
-                // [BỎ QUA KẺ ĐỊCH GỤC / CHẾT]
-                if (cfg::aim::ignore_knocked && (p.isKnocked || p.curHP <= 0)) continue;
-                if (p.distance > cfg::aim::kMaxRange) continue;
+                // [FILTER: Only players with HP > 0 and not dead]
+                if (p.curHP <= 0 || p.isDead) continue;
 
-                // [CHECK VISIBLE]
+                // [FILTER: Ignore knocked enemies]
+                if (cfg::aim::ignore_knocked && p.isKnocked) continue;
+
+                // [FILTER: Check visible only]
                 if (cfg::aim::aim_visible && !p.isVisible) continue;
+
+                if (p.distance > cfg::aim::kMaxRange) continue;
 
                 Vector3 boneScreen = p.Head;
                 if (targetBone == 1 && is_screen_valid(p.Breast)) boneScreen = p.Breast;
@@ -130,16 +132,16 @@ namespace aimbot {
 
                     if (targetBone == 0) {
                         uint64_t bNode = rpm<uint64_t>(p.addr + Offsets::Bone_Head);
-                        if (bNode) wPos = GetNodePosition(bNode);
+                        if (bNode >= 0x100000000) wPos = GetNodePosition(bNode);
                     } else {
                         uint64_t bNode = rpm<uint64_t>(p.addr + Offsets::Bone_Breast);
-                        if (bNode) wPos = GetNodePosition(bNode);
+                        if (bNode >= 0x100000000) wPos = GetNodePosition(bNode);
                     }
 
                     if (wPos == Vector3::Zero()) continue;
 
-                    uint64_t headCol = rpm<uint64_t>(p.addr + Offsets::Player_HedColider);
-                    uint64_t bodyCol = rpm<uint64_t>(p.addr + Offsets::Player_ColWrite);
+                    uint64_t headCol = (Offsets::Player_HedColider >= 0x20) ? rpm<uint64_t>(p.addr + Offsets::Player_HedColider) : 0;
+                    uint64_t bodyCol = (Offsets::Player_ColWrite >= 0x20) ? rpm<uint64_t>(p.addr + Offsets::Player_ColWrite) : 0;
 
                     if (targetBone == 0) {
                         col = headCol ? headCol : bodyCol;
@@ -163,45 +165,48 @@ namespace aimbot {
         if (!best.addr || best.worldPos == Vector3::Zero()) return;
 
         // ════════════════════════════════════════════════════════════════════
-        // 4. UNDER KILL (Bắn ngầm xuyên sàn / địa hình)
+        // 4. UNDER KILL (Sub-surface Trajectory)
         // ════════════════════════════════════════════════════════════════════
         if (cfg::underkill::enable) {
-            // Hạ thấp tọa độ vector xuống dưới đất để xuyên qua cover và chân tường
             best.worldPos.y -= cfg::underkill::depth_offset;
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // 5. AUTO TELEMARK (Dịch chuyển tức thời tới vị trí mục tiêu)
+        // 5. AUTO TELEMARK (Teleport Position Override)
         // ════════════════════════════════════════════════════════════════════
-        if (cfg::telemark::enable) {
-            // Đặt tọa độ người chơi ngay phía sau mục tiêu 1.5m
-            Vector3 telePos = best.worldPos + Vector3(0.0f, 0.5f, -1.5f);
+        if (cfg::telemark::enable && Offsets::Bone_Root >= 0x20) {
             uint64_t rootNode = rpm<uint64_t>(localAddr + Offsets::Bone_Root);
-            if (rootNode) {
-                // Ghi tọa độ Transform
+            if (rootNode >= 0x100000000 && rootNode <= 0x7fffffffff) {
                 uint64_t tf = rpm<uint64_t>(rootNode + 0x10);
-                if (tf) {
+                if (tf >= 0x100000000 && tf <= 0x7fffffffff) {
+                    Vector3 telePos = best.worldPos + Vector3(0.0f, 0.5f, -1.5f);
                     wpm<Vector3>(tf + 0x90, telePos);
                 }
             }
         }
 
+        Vector3 camOrigin = (cameraPos != Vector3::Zero()) ? cameraPos : localPos;
+        Vector3 targetDiff = best.worldPos - camOrigin;
+        float targetDist = Vector3::Magnitude(targetDiff);
+        if (targetDist < 0.05f) return;
+        Vector3 aimDir = targetDiff / targetDist;
+
         // ════════════════════════════════════════════════════════════════════
-        // 6. AIMKILL (Giới hạn delay tối thiểu 10ms)
+        // 6. AIMKILL (10ms Execution Delay Clamp)
         // ════════════════════════════════════════════════════════════════════
-        if (cfg::aimkill::enable) {
+        if (cfg::aimkill::enable && Offsets::Player_AimInfo >= 0x20) {
             auto now = std::chrono::steady_clock::now();
             auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_lastAimKillTime).count();
 
-            // Clamp cứng: chỉ bắn khi đã đủ 10ms kể từ lần bắn trước
             if (elapsedMs >= cfg::aimkill::kDelayLimitMs) {
                 s_lastAimKillTime = now;
-
-                // Nạp sát thương tức thì trực tiếp vào Head Collider
                 uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
-                if (aimInfo) {
+                if (aimInfo >= 0x100000000 && aimInfo <= 0x7fffffffff) {
                     wpm<Vector3>(aimInfo + Offsets::HitInfo_HitLocation, best.worldPos);
-                    wpm<uint64_t>(aimInfo + Offsets::HitInfo_HitCollider, best.targetCol);
+                    wpm<Vector3>(aimInfo + Offsets::HitInfo_RayDir, aimDir);
+                    if (best.targetCol >= 0x100000000) {
+                        wpm<uint64_t>(aimInfo + Offsets::HitInfo_HitCollider, best.targetCol);
+                    }
                     wpm<int32_t>(aimInfo + Offsets::HitInfo_HitGroup, 1); // Head
                     wpm<float>(aimInfo + Offsets::HitInfo_DamageRatio, 1.0f);
                     wpm<bool>(aimInfo + Offsets::HitInfo_ViewBlocked, false);
@@ -210,49 +215,36 @@ namespace aimbot {
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // 7. AIMBOT RAY & CAMERA LOCK
+        // 7. AIMBOT RAY & CAMERA LOCK (Safe External Write)
         // ════════════════════════════════════════════════════════════════════
-        Vector3 camOrigin = (cameraPos != Vector3::Zero()) ? cameraPos : localPos;
-        Vector3 targetDiff = best.worldPos - camOrigin;
-        float targetDist = Vector3::Magnitude(targetDiff);
-
-        if (targetDist > 0.05f) {
-            Vector3 aimDir = targetDiff / targetDist;
-
-            // Override AimInfo
-            uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
-            if (aimInfo) {
-                wpm<Vector3>(aimInfo + Offsets::HitInfo_HitLocation, best.worldPos);
-                wpm<Vector3>(aimInfo + Offsets::HitInfo_RayDir, aimDir);
-                if (best.targetCol) {
-                    wpm<uint64_t>(aimInfo + Offsets::HitInfo_HitCollider, best.targetCol);
+        if (cfg::aim::enable) {
+            if (Offsets::Player_AimInfo >= 0x20) {
+                uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
+                if (aimInfo >= 0x100000000 && aimInfo <= 0x7fffffffff) {
+                    wpm<Vector3>(aimInfo + Offsets::HitInfo_HitLocation, best.worldPos);
+                    wpm<Vector3>(aimInfo + Offsets::HitInfo_RayDir, aimDir);
+                    if (best.targetCol >= 0x100000000) {
+                        wpm<uint64_t>(aimInfo + Offsets::HitInfo_HitCollider, best.targetCol);
+                    }
+                    wpm<int32_t>(aimInfo + Offsets::HitInfo_HitGroup, best.hitGroup);
+                    wpm<float>(aimInfo + Offsets::HitInfo_DamageRatio, 1.0f);
+                    wpm<bool>(aimInfo + Offsets::HitInfo_ViewBlocked, false);
                 }
-                wpm<int32_t>(aimInfo + Offsets::HitInfo_HitGroup, best.hitGroup);
-                wpm<float>(aimInfo + Offsets::HitInfo_DamageRatio, 1.0f);
-                wpm<bool>(aimInfo + Offsets::HitInfo_ViewBlocked, false);
             }
 
-            // Ghi nhận mục tiêu
-            wpm<uint64_t>(localAddr + Offsets::Player_LastAimTargetRef, best.addr);
-
-            // Bẻ góc nhìn Camera khi AimLock bật
-            if (cfg::aim::aim_lock) {
+            if (cfg::aim::aim_lock && Offsets::Player_Camera >= 0x20) {
                 uint64_t followCam = rpm<uint64_t>(localAddr + Offsets::Player_Camera);
-                if (followCam) {
+                if (followCam >= 0x100000000 && followCam <= 0x7fffffffff && Offsets::Camera_Rotation >= 0x20) {
                     Quaternion curCamRot = rpm<Quaternion>(followCam + Offsets::Camera_Rotation);
                     Quaternion targetCamRot = Quaternion::LookRotation(aimDir, Vector3::Up());
-
-                    float smoothness = cfg::aim::kFastSmoothness;
-                    Quaternion newCamRot = Quaternion::Slerp(curCamRot, targetCamRot, smoothness);
+                    Quaternion newCamRot = Quaternion::Slerp(curCamRot, targetCamRot, cfg::aim::kFastSmoothness);
                     wpm<Quaternion>(followCam + Offsets::Camera_Rotation, newCamRot);
 
-                    Quaternion curPlayerRot = rpm<Quaternion>(localAddr + Offsets::Player_Rotation);
-                    Quaternion newPlayerRot = Quaternion::Slerp(curPlayerRot, targetCamRot, smoothness);
-                    wpm<Quaternion>(localAddr + Offsets::Player_Rotation, newPlayerRot);
-                    wpm<Quaternion>(localAddr + Offsets::Player_CurrentAimRotation, newPlayerRot);
-
-                    uint32_t rotCount = rpm<uint32_t>(localAddr + Offsets::Player_CallSetAimRotationCount);
-                    wpm<uint32_t>(localAddr + Offsets::Player_CallSetAimRotationCount, rotCount + 1);
+                    if (Offsets::Player_Rotation >= 0x20) {
+                        Quaternion curPlayerRot = rpm<Quaternion>(localAddr + Offsets::Player_Rotation);
+                        Quaternion newPlayerRot = Quaternion::Slerp(curPlayerRot, targetCamRot, cfg::aim::kFastSmoothness);
+                        wpm<Quaternion>(localAddr + Offsets::Player_Rotation, newPlayerRot);
+                    }
                 }
             }
         }

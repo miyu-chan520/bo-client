@@ -3,7 +3,7 @@
 #include <cstdint>
 
 // ============================================================================
-// BO Client — Dynamic Runtime Offset Registry (100% RAM Scanned)
+// BO Client — Dynamic Runtime Offset Registry (100% External RAM Scanned)
 // Target: Free Fire Standard (com.dts.freefireth)
 // Clean, streamlined offset storage populated directly from live RAM.
 // ============================================================================
@@ -42,9 +42,19 @@ namespace Offsets {
     inline uintptr_t Player_HP                 = 0x70;
     inline uintptr_t Player_Armor              = 0x74;
     inline uintptr_t Player_IsDead             = 0x7C;
+    inline uintptr_t Player_IsKnocked          = 0;
     inline uintptr_t Player_ColWrite           = 0x80;
     inline uintptr_t Player_Velocity           = 0xF0;
     inline uintptr_t Player_IsGrounded         = 0x11C;
+
+    // ── HitInfo ──
+    inline uintptr_t HitInfo_HitLocation       = 0;
+    inline uintptr_t HitInfo_RayDir            = 0xC;
+    inline uintptr_t HitInfo_HitCollider       = 0x18;
+    inline uintptr_t HitInfo_HitGroup          = 0x20;
+    inline uintptr_t HitInfo_HitGroupShort     = 0x24;
+    inline uintptr_t HitInfo_DamageRatio       = 0x28;
+    inline uintptr_t HitInfo_ViewBlocked       = 0x2C;
 
     // ── Avatar & Camera (Resolved from live child classes) ──
     inline uintptr_t Avatar_Uma                = 0x28;
@@ -98,12 +108,4 @@ namespace Offsets {
     inline uintptr_t DropObject_ResID          = 0x64;
     inline uintptr_t DropObject_Landed         = 0x9C;
 
-    // ── HitInfo (Resolved from live AimInfo Il2CppClass) ──
-    inline uintptr_t HitInfo_HitLocation       = 0x28;
-    inline uintptr_t HitInfo_HitCollider       = 0x20;
-    inline uintptr_t HitInfo_RayDir            = 0x40;
-    inline uintptr_t HitInfo_HitGroup          = 0x58;
-    inline uintptr_t HitInfo_HitGroupShort     = 0x80;
-    inline uintptr_t HitInfo_DamageRatio       = 0x5C;
-    inline uintptr_t HitInfo_ViewBlocked       = 0x71;
-}
+} // namespace Offsets

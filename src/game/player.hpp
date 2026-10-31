@@ -27,6 +27,7 @@ struct PlayerData {
     // ── Meta ──
     bool     isVisible;
     bool     isKnocked;
+    bool     isDead;
     bool     isBot;
     int      team;
     bool     isTeammate;
@@ -49,7 +50,7 @@ struct PlayerData {
           LToe(Vector3::Zero()), RToe(Vector3::Zero()),
           LForeArm(Vector3::Zero()), RForeArm(Vector3::Zero()),
           LHand(Vector3::Zero()), RHand(Vector3::Zero()),
-          isVisible(false), isKnocked(false), isBot(false), team(-1), isTeammate(false), distance(0.f),
+          isVisible(false), isKnocked(false), isDead(false), isBot(false), team(-1), isTeammate(false), distance(0.f),
           curHP(0), maxHP(200), curArmor(0),
           isFiring(false), isGrounded(true), speed(0.f),
           weaponType(-1)

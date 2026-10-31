@@ -390,6 +390,9 @@ namespace DynamicOffsets {
         int32_t offDead = GetFieldOffsetByNames(playerClass, {"CGJLEBOGBNP", "IsDead", "m_IsDead"});
         if (offDead >= 0) Offsets::Player_IsDead = (uintptr_t)offDead;
 
+        int32_t offKnocked = GetFieldOffsetByNames(playerClass, {"m_isKnockDown", "IsKnockDown", "isKnockDown", "m_isDying"});
+        if (offKnocked >= 0) Offsets::Player_IsKnocked = (uintptr_t)offKnocked;
+
         int32_t offColWrite = GetFieldOffsetByNames(playerClass, {"<AONPKGBGHHI>k__BackingField", "ColWrite", "m_Collider"});
         if (offColWrite >= 0) Offsets::Player_ColWrite = (uintptr_t)offColWrite;
 
