@@ -343,17 +343,18 @@ namespace DynamicOffsets {
 
         // ════════════════════════════════════════════════════════
         // DYNAMIC SKELETON BONE OFFSETS (14 BONES)
+        // Obfuscated names recovered from libmain.so & Free Fire Standard
         // ════════════════════════════════════════════════════════
-        int32_t offHead = GetFieldOffsetByNames(playerClass, {"GBKFHDFCPMD", "Head", "m_Head"});
+        int32_t offHead = GetFieldOffsetByNames(playerClass, {"IIPBIDIBJDK", "GBKFHDFCPMD", "Head", "m_Head", "headNode"});
         if (offHead >= 0) Offsets::Bone_Head = (uintptr_t)offHead;
 
-        int32_t offBreast = GetFieldOffsetByNames(playerClass, {"FFFPCADFFGA", "Breast", "Chest"});
+        int32_t offBreast = GetFieldOffsetByNames(playerClass, {"FFFPCADFFGA", "Breast", "Chest", "chestNode"});
         if (offBreast >= 0) Offsets::Bone_Breast = (uintptr_t)offBreast;
 
-        int32_t offHip = GetFieldOffsetByNames(playerClass, {"COBFGNOIPMF", "Hip", "Pelvis"});
+        int32_t offHip = GetFieldOffsetByNames(playerClass, {"COBFGNOIPMF", "Hip", "Pelvis", "hipNode"});
         if (offHip >= 0) Offsets::Bone_Hip = (uintptr_t)offHip;
 
-        int32_t offRoot = GetFieldOffsetByNames(playerClass, {"IIPBIDIBJDK", "Root", "m_Root"});
+        int32_t offRoot = GetFieldOffsetByNames(playerClass, {"GBKFHDFCPMD", "IIPBIDIBJDK", "Root", "m_Root", "rootNode"});
         if (offRoot >= 0) Offsets::Bone_Root = (uintptr_t)offRoot;
 
         int32_t offLToe = GetFieldOffsetByNames(playerClass, {"GMJLIMFHMAE", "LeftToe", "LToe"});
