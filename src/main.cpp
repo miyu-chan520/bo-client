@@ -7,6 +7,7 @@
 #include "game/AimSilent.h"
 #include "game/Offsets.h"
 #include "game/features.hpp"
+#include "bypass/bypass.hpp"
 #include "func/esp.hpp"
 #include "Login/Login.h"
 #include "Login/Jni_Stuff.h"
@@ -47,7 +48,9 @@ bool g_hideRecord = true;
 // ═══════════════════════════════════════════════════════════
 // BYPASS INITIALIZATION
 // ═══════════════════════════════════════════════════════════
-extern "C" void init_bypass();
+extern "C" void init_bypass() {
+    bypass::init_combined_bypass();
+}
 
 // ═══════════════════════════════════════════════════════════
 // TARGET GAME
