@@ -19,19 +19,19 @@ namespace proc {
 
 namespace sys {
     #if defined(__aarch64__)
-    static constexpr long SYS_openat     = 56;
-    static constexpr long SYS_close      = 57;
-    static constexpr long SYS_read       = 63;
-    static constexpr long SYS_getdents64 = 61;
-    static constexpr long SYS_vm_read    = 270;
-    static constexpr long SYS_vm_write   = 271;
+    static constexpr long K_SYS_openat     = 56;
+    static constexpr long K_SYS_close      = 57;
+    static constexpr long K_SYS_read       = 63;
+    static constexpr long K_SYS_getdents64 = 61;
+    static constexpr long K_SYS_vm_read    = 270;
+    static constexpr long K_SYS_vm_write   = 271;
     #elif defined(__x86_64__)
-    static constexpr long SYS_openat     = 257;
-    static constexpr long SYS_close      = 3;
-    static constexpr long SYS_read       = 0;
-    static constexpr long SYS_getdents64 = 217;
-    static constexpr long SYS_vm_read    = 310;
-    static constexpr long SYS_vm_write   = 311;
+    static constexpr long K_SYS_openat     = 257;
+    static constexpr long K_SYS_close      = 3;
+    static constexpr long K_SYS_read       = 0;
+    static constexpr long K_SYS_getdents64 = 217;
+    static constexpr long K_SYS_vm_read    = 310;
+    static constexpr long K_SYS_vm_write   = 311;
     #endif
 
     #ifndef AT_FDCWD
@@ -65,15 +65,15 @@ namespace sys {
         return r;
     }
 
-    static inline int  openat(int fd, const char* p, int f)  { return static_cast<int>(sc6(SYS_openat, fd, reinterpret_cast<long>(p), f, 0, 0, 0)); }
-    static inline int  close (int fd)                        { return static_cast<int>(sc6(SYS_close, fd, 0, 0, 0, 0, 0)); }
-    static inline long read  (int fd, void* b, size_t c)     { return sc6(SYS_read, fd, reinterpret_cast<long>(b), c, 0, 0, 0); }
-    static inline long getdents64(int fd, void* d, size_t c) { return sc6(SYS_getdents64, fd, reinterpret_cast<long>(d), c, 0, 0, 0); }
+    static inline int  openat(int fd, const char* p, int f)  { return static_cast<int>(sc6(K_SYS_openat, fd, reinterpret_cast<long>(p), f, 0, 0, 0)); }
+    static inline int  close (int fd)                        { return static_cast<int>(sc6(K_SYS_close, fd, 0, 0, 0, 0, 0)); }
+    static inline long read  (int fd, void* b, size_t c)     { return sc6(K_SYS_read, fd, reinterpret_cast<long>(b), c, 0, 0, 0); }
+    static inline long getdents64(int fd, void* d, size_t c) { return sc6(K_SYS_getdents64, fd, reinterpret_cast<long>(d), c, 0, 0, 0); }
     static inline long vm_read (int pid, struct iovec* l, unsigned long lc, struct iovec* r, unsigned long rc) {
-        return sc6(SYS_vm_read, pid, reinterpret_cast<long>(l), lc, reinterpret_cast<long>(r), rc, 0);
+        return sc6(K_SYS_vm_read, pid, reinterpret_cast<long>(l), lc, reinterpret_cast<long>(r), rc, 0);
     }
     static inline long vm_write(int pid, struct iovec* l, unsigned long lc, struct iovec* r, unsigned long rc) {
-        return sc6(SYS_vm_write, pid, reinterpret_cast<long>(l), lc, reinterpret_cast<long>(r), rc, 0);
+        return sc6(K_SYS_vm_write, pid, reinterpret_cast<long>(l), lc, reinterpret_cast<long>(r), rc, 0);
     }
 }
 
