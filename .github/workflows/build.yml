@@ -1,4 +1,4 @@
-name: Build Bo-Client Zygisk Module
+name: Build Bo-Client (External & Zygisk)
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build Zygisk Module (arm64-v8a)
+    name: Build External Binary & Zygisk Module (arm64-v8a)
     runs-on: ubuntu-latest
 
     steps:
@@ -22,10 +22,29 @@ jobs:
           ndk-version: r25c
           add-to-path: true
 
-      - name: Compile Native Module with ndk-build
+      - name: Compile Native Binaries with ndk-build
         run: |
           cd jni
           ndk-build -B V=1
+
+      - name: Assemble External Overlay Package
+        run: |
+          mkdir -p package_external
+          cp libs/arm64-v8a/bo_service package_external/
+          cat << 'EOF' > package_external/start.sh
+          #!/system/bin/sh
+          # NEXORA VIP External Launcher
+          BASEDIR="$(cd "$(dirname "$0")" && pwd)"
+          chmod +x "$BASEDIR/bo_service"
+          settings put global block_untrusted_touches 0 2>/dev/null
+          settings put secure block_untrusted_touches 0 2>/dev/null
+          settings put system block_untrusted_touches 0 2>/dev/null
+          echo "[*] Launching NEXORA VIP Hardware Overlay Service..."
+          "$BASEDIR/bo_service" "$@"
+          EOF
+          chmod +x package_external/start.sh
+          cd package_external
+          zip -r ../bo-client-external-arm64.zip .
 
       - name: Assemble Magisk / KernelSU / APatch Zygisk Zip
         run: |
@@ -36,7 +55,14 @@ jobs:
           cd package
           zip -r ../bo-client-zygisk-v2.0.zip .
 
-      - name: Upload Build Artifact
+      - name: Upload External Overlay Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bo-client-external-arm64
+          path: bo-client-external-arm64.zip
+          retention-days: 14
+
+      - name: Upload Zygisk Magisk Module Artifact
         uses: actions/upload-artifact@v4
         with:
           name: bo-client-zygisk-v2.0

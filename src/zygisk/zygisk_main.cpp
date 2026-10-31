@@ -57,8 +57,10 @@ public:
             env_->ReleaseStringUTFChars(args->nice_name, nice_name);
         }
 
-        // Target check: Free Fire Standard & MAX
-        if (package_name_ == "com.dts.freefireth" || 
+        // Target check: Free Fire Standard (TH), VN, & MAX
+        if (package_name_.find("freefire") != std::string::npos ||
+            package_name_ == "com.dts.freefireth" || 
+            package_name_ == "com.dts.freefirevn" || 
             package_name_ == "com.dts.freefiremax") {
             is_target_game_ = true;
             LOGI("[+] Detected Free Fire target: %s (PID: %d)", package_name_.c_str(), getpid());

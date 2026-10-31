@@ -5,6 +5,7 @@
 #include "../includes/internal/ImGui/imgui_internal.h"
 #include "../includes/internal/ImGui/backends/imgui_impl_opengl3.h"
 #include "../ui/menu.hpp"
+#include "../ui/bar.hpp"
 #include "../func/esp.hpp"
 #include "../ui/styles/styles.h"
 #include "font_data.hpp"
@@ -76,10 +77,7 @@ static EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
         io.DisplaySize = ImVec2(static_cast<float>(g_width), static_cast<float>(g_height));
         ImGui::NewFrame();
 
-        // 1. Draw ESP Elements
-        esp::draw_esp();
-
-        // 2. Draw Internal Menu Window
+        // Draw Menu + ESP + Floating Bar
         ui::menu::render();
 
         ImGui::Render();
@@ -117,7 +115,7 @@ static int32_t hook_AInputQueue_getEvent(AInputQueue* queue, AInputEvent** outEv
                 }
 
                 // If menu is open and touches are on ImGui window, intercept to prevent game from firing
-                if (menu_visible.load() && io.WantCaptureMouse) {
+                if ((ui::bar::g_open || menu_visible.load()) && io.WantCaptureMouse) {
                     if (orig_AInputQueue_finishEvent) {
                         orig_AInputQueue_finishEvent(queue, *outEvent, 1);
                     }

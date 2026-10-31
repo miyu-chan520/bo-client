@@ -1,6 +1,6 @@
 #include "Android_draw/draw.h"
 #include "protect/oxorany.hpp"
-#include "../../includes/font/font_data.hpp"
+#include "font_data.hpp"
 
 EGLDisplay display = EGL_NO_DISPLAY;
 EGLConfig config;

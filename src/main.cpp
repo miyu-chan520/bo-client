@@ -1,4 +1,4 @@
-// ZqwClient — NEXORA PROJECT
+// ZqwClient — NEXORA PROJECT (External Overlay & Native Surface)
 #include "Android_draw/draw.h"
 #include "ui/styles/styles.h"
 #include "ui/menu.hpp"
@@ -6,6 +6,7 @@
 #include "game/data.hpp"
 #include "game/AimSilent.h"
 #include "game/Offsets.h"
+#include "game/features.hpp"
 #include "func/esp.hpp"
 #include "Login/Login.h"
 #include "Login/Jni_Stuff.h"
@@ -40,77 +41,29 @@
 // ═══════════════════════════════════════════════════════════
 //  FLAG GLOBAL
 // ═══════════════════════════════════════════════════════════
-std::atomic<bool> g_menu_started{false};
+std::atomic<bool> g_menu_started{true};
+bool g_hideRecord = true;
 
 // ═══════════════════════════════════════════════════════════
-// BYPASS
+// BYPASS INITIALIZATION
 // ═══════════════════════════════════════════════════════════
 extern "C" void init_bypass();
-
-// ═══════════════════════════════════════════════════════════
-// GLOBAL
-// ═══════════════════════════════════════════════════════════
-bool g_hideRecord = true;
 
 // ═══════════════════════════════════════════════════════════
 // TARGET GAME
 // ═══════════════════════════════════════════════════════════
 enum TargetGame {
-    GAME_FF     = 0,
-    GAME_FF_MAX = 1
+    GAME_FF_AUTO = 0,
+    GAME_FF_TH   = 1,
+    GAME_FF_VN   = 2,
+    GAME_FF_MAX  = 3
 };
 
-static TargetGame g_targetGame = GAME_FF;
+static TargetGame g_targetGame = GAME_FF_AUTO;
 
 static const char* kFFActivity    = "com.dts.freefireth/com.dts.freefireth.FFMainActivity";
 static const char* kFFMaxActivity = "com.dts.freefiremax/com.dts.freefiremax.FFMainActivity";
-static const char* kFFPackage     = "com.dts.freefireth";
-static const char* kFFMaxPackage  = "com.dts.freefiremax";
-
-static const char* GetTargetActivity() {
-    return (g_targetGame == GAME_FF) ? kFFActivity : kFFMaxActivity;
-}
-static const char* GetTargetPackage() {
-    return (g_targetGame == GAME_FF) ? kFFPackage : kFFMaxPackage;
-}
-
-// ═══════════════════════════════════════════════════════════
-// LAUNCH TARGET
-// ═══════════════════════════════════════════════════════════
-static bool launch_target_silent() {
-    pid_t pid = fork();
-    if (pid < 0) return false;
-    if (pid == 0) {
-        execl("/system/bin/am", "am", "start", "-n",
-              GetTargetActivity(), (char*)nullptr);
-        _exit(127);
-    }
-    int status = 0;
-    waitpid(pid, &status, 0);
-    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
-}
-
-// ═══════════════════════════════════════════════════════════
-// ATTACH / LAUNCH
-// ═══════════════════════════════════════════════════════════
-static int attach_or_launch() {
-    proc::pid = get_pid();
-    if (proc::pid > 0) {
-        LOGI("[+] Already running, pid=%d", proc::pid);
-        return proc::pid;
-    }
-    LOGI("[+] Launching %s...", GetTargetPackage());
-    launch_target_silent();
-    for (int i = 0; i < 120; i++) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        proc::pid = get_pid();
-        if (proc::pid > 0) {
-            LOGI("[+] Attached, pid=%d", proc::pid);
-            return proc::pid;
-        }
-    }
-    return -1;
-}
+static const char* kFFVnActivity  = "com.dts.freefirevn/com.dts.freefirevn.FFMainActivity";
 
 // ═══════════════════════════════════════════════════════════
 // BANNER
@@ -126,68 +79,20 @@ static void print_banner() {
     printf("   ╚═════╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝╚══════╝ ╚═════╝ \n");
     printf(RST);
     printf(FG_BCYAN BOLD "  ╔═══════════════════════════════════════════════╗\n" RST);
-    printf(FG_BCYAN "  ║" RST FG_BYELLOW BOLD "        NEXORA PROJECT — FREE FIRE          " RST FG_BCYAN "║\n" RST);
-    printf(FG_BCYAN "  ║" RST FG_BGREEN "              v1.0 VIP EDITION                 " RST FG_BCYAN "║\n" RST);
+    printf(FG_BCYAN "  ║" RST FG_BYELLOW BOLD "        NEXORA PROJECT — FREE FIRE VIP         " RST FG_BCYAN "║\n" RST);
+    printf(FG_BCYAN "  ║" RST FG_BGREEN "         EXTERNAL OVERLAY & EXPLOIT           " RST FG_BCYAN "║\n" RST);
     printf(FG_BCYAN "  ╚═══════════════════════════════════════════════╝\n" RST);
     printf("\n");
 }
 
 // ═══════════════════════════════════════════════════════════
-// TERMINAL LOGIN — INPUT KEY
-// ═══════════════════════════════════════════════════════════
-static bool terminal_login() {
-    char keyBuf[256] = {0};
-
-    printf(FG_BYELLOW "\n  ┌─────────────────────────────────────────────┐\n" RST);
-    printf(FG_BYELLOW "  │" RST FG_BWHITE BOLD "        🔑  ENTER LICENSE KEY               " RST FG_BYELLOW "│\n" RST);
-    printf(FG_BYELLOW "  └─────────────────────────────────────────────┘\n" RST);
-    printf("\n");
-
-    printf(FG_BCYAN "  ► " RST FG_BWHITE "License Key: " RST);
-    fflush(stdout);
-
-    if (fgets(keyBuf, sizeof(keyBuf), stdin) == nullptr) {
-        printf(FG_BRED "\n  [!] Gagal baca input\n" RST);
-        return false;
-    }
-
-    std::string key = keyBuf;
-    key.erase(0, key.find_first_not_of(" \t\n\r"));
-    if (!key.empty())
-        key.erase(key.find_last_not_of(" \t\n\r") + 1);
-
-    if (key.empty()) {
-        printf(FG_BRED "  [!] Key kosong!\n" RST);
-        return false;
-    }
-
-    printf("\n");
-    printf(FG_BBLUE "  [~] Verifying key: " RST FG_BYELLOW "%s" RST "\n", key.c_str());
-    LOGI("[+] Login with key: %s", key.c_str());
-
-    std::string result = Login(key.c_str());
-
-    if (result == "OK") {
-        g_license_activated.store(0x4E580021, std::memory_order_release);
-        printf(FG_BGREEN "  [✓] Key VALID!" RST);
-        if (!g_license_user_name.empty())
-            printf(FG_BYELLOW " Welcome %s" RST, g_license_user_name.c_str());
-        printf("\n");
-        return true;
-    } else {
-        printf(FG_BRED "  [!] Key INVALID: " RST FG_BYELLOW "%s" RST "\n", result.c_str());
-        return false;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════
-// START OVERLAY
+// START OVERLAY SERVICE
 // ═══════════════════════════════════════════════════════════
 static int start_overlay() {
-    LOGI("=== NEXORA starting ===");
+    LOGI("=== NEXORA External Service starting ===");
 
-    // ─── INIT GUI ───
-    printf(FG_BBLUE "  [1/4] " RST FG_BWHITE "Init GUI...\n" RST);
+    // ─── 1. INIT NATIVE SURFACE GUI ───
+    printf(FG_BBLUE "  [1/4] " RST FG_BWHITE "Initializing Hardware Screen Overlay...\n" RST);
 
     screen_config();
 
@@ -202,117 +107,68 @@ static int start_overlay() {
     native_window_screen_y = min_size;
 
     if (!initGUI_draw(native_window_screen_x, native_window_screen_y, true)) {
-        printf(FG_BRED "  [!] initGUI FAILED!\n" RST);
+        printf(FG_BRED "  [!] initGUI FAILED! Ensure running as root.\n" RST);
         return -1;
     }
-    printf(FG_BGREEN "  [✓] GUI ready\n" RST);
+    printf(FG_BGREEN "  [✓] Hardware Overlay ready (%dx%d)!\n" RST, max_size, min_size);
 
+    // ─── 2. INIT TOUCH DRIVER ───
     touch::init(max_size, min_size, (uint8_t)displayInfo.orientation);
+    printf(FG_BGREEN "  [✓] Touch input driver hooked via /dev/input\n" RST);
 
-    // ═══════════════════════════════════════════════════════
-    //  [2/4] TERMINAL LOGIN
-    // ═══════════════════════════════════════════════════════
-    while (!IsLicenseActivated()) {
-        if (terminal_login()) {
-            break;
-        }
-        printf(FG_BYELLOW "\n  [~] Coba lagi...\n" RST);
-    }
+    // ─── 3. BYPASS & VIP LICENSE ───
+    g_license_activated.store(0x4E580021, std::memory_order_release);
+    g_menu_started.store(true, std::memory_order_release);
 
-    printf(FG_BGREEN "\n  [✓] Login berhasil! Menunggu klik START...\n" RST);
-
-    // ═══════════════════════════════════════════════════════
-    //  [3/4] TAMPIL IMGUI
-    // ═══════════════════════════════════════════════════════
-    while (!g_menu_started.load()) {
-        global_anim_time += 0.016f;
-
-        drawBegin();
-        DrawLicenseMenu();
-        drawEnd();
-
-        usleep(16000);
-    }
-
-    printf(FG_BGREEN "  [✓] Menu started!\n" RST);
-
-    // ─── BYPASS ───
-    printf(FG_BBLUE "  [4/4] " RST FG_BWHITE "Init bypass...\n" RST);
+    printf(FG_BBLUE "  [2/4] " RST FG_BWHITE "Initializing Anti-Cheat Bypass...\n" RST);
     init_bypass();
+    printf(FG_BGREEN "  [✓] Memory bypass initialized\n" RST);
 
-    // ─── ATTACH KE GAME ───
-    printf(FG_BBLUE "  [~] " RST FG_BWHITE "Attaching to " FG_BYELLOW "%s" FG_BWHITE "...\n" RST,
-           GetTargetPackage());
+    // ─── 4. ASYNC GAME ATTACH & DATA ENGINE ───
+    printf(FG_BBLUE "  [3/4] " RST FG_BWHITE "Waiting for Free Fire process...\n" RST);
+    std::thread([]() {
+        while (proc::pid <= 0) {
+            proc::pid = get_pid();
+            if (proc::pid > 0) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
 
-    if (attach_or_launch() <= 0) {
-        printf(FG_BRED "  [!] Gagal attach\n" RST);
-        return -1;
-    }
+        LOGI("[+] Free Fire process detected: PID %d (%s)", proc::pid, proc::pkg_name);
+        printf(FG_BGREEN "  [✓] Free Fire detected! PID: " FG_BYELLOW "%d" FG_BGREEN " (%s)\n" RST,
+               proc::pid, proc::pkg_name);
 
-    proc::lib = get_lib();
-    printf(FG_BGREEN "  [✓] Attached! PID: " FG_BYELLOW "%d\n" RST, proc::pid);
+        for (int i = 0; i < 120; i++) {
+            proc::lib = get_lib();
+            if (proc::lib > 0) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
 
-    // ═══════════════════════════════════════════════════════
-    //  INIT AIM SILENT HOOK (DEBUG)
-    // ═══════════════════════════════════════════════════════
-    printf(FG_BBLUE "  [~] " RST FG_BWHITE "Init Aim Silent Hook...\n" RST);
+        LOGI("[+] libil2cpp.so base: 0x%lx", (unsigned long)proc::lib);
+        printf(FG_BGREEN "  [✓] libil2cpp.so mapped @ " FG_BYELLOW "0x%lx\n" RST,
+               (unsigned long)proc::lib);
 
-    printf(FG_BYELLOW "  [DEBUG] lib base       = 0x%lx\n" RST, (unsigned long)proc::lib);
-    printf(FG_BYELLOW "  [DEBUG] RVA TakeDamage_9 = 0x%lx\n" RST, (unsigned long)Offsets::Player_TakeDamage_9);
-    printf(FG_BYELLOW "  [DEBUG] RVA TakeDamage_4 = 0x%lx\n" RST, (unsigned long)Offsets::Player_TakeDamage_4);
-    printf(FG_BYELLOW "  [DEBUG] RVA HeadCollider = 0x%lx\n" RST, (unsigned long)Offsets::Player_get_HeadCollider);
-    printf(FG_BYELLOW "  [DEBUG] Hook addr 9    = 0x%lx\n" RST, (unsigned long)(proc::lib + Offsets::Player_TakeDamage_9));
-    printf(FG_BYELLOW "  [DEBUG] Hook addr 4    = 0x%lx\n" RST, (unsigned long)(proc::lib + Offsets::Player_TakeDamage_4));
-    printf(FG_BYELLOW "  [DEBUG] Hook addr HC   = 0x%lx\n" RST, (unsigned long)(proc::lib + Offsets::Player_get_HeadCollider));
-    fflush(stdout);
+        InitAimSilentHook();
+        data::thread_start();
+        features::install_hooks();
 
-    InitAimSilentHook();
+        printf(FG_BGREEN BOLD "  ⭐ NEXORA VIP Overlay Fully Active & Synced! ⭐\n" RST);
+        fflush(stdout);
+    }).detach();
 
-    printf(FG_BGREEN "  [✓] Aim Silent Hook installed\n" RST);
-    printf(FG_BYELLOW "  [DEBUG] AimSilentEnabled = %d\n" RST, (int)AimSilentEnabled);
-    printf(FG_BYELLOW "  [DEBUG] AimSilentNobita  = %d\n" RST, (int)AimSilentNobita);
-    fflush(stdout);
-
-    // ─── START DATA THREAD ───
-    data::thread_start();
-    printf(FG_BGREEN "  [✓] Data thread started\n" RST);
-    fflush(stdout);
-
+    printf(FG_BBLUE "  [4/4] " RST FG_BWHITE "Starting Render Engine...\n" RST);
     printf(FG_BGREEN BOLD "  ⭐ Overlay Started! ⭐\n" RST);
-    printf(FG_BCYAN "  [INFO] Toggle Aim Silent di menu > tab ESP\n" RST);
-    printf(FG_BCYAN "  [INFO] Masuk match, tembak musuh, cek log\n" RST);
+    printf(FG_BCYAN "  [INFO] Tap top-right floating Nexora badge to toggle Menu\n" RST);
     fflush(stdout);
 
-    // ═══════════════════════════════════════════════════════
-    //  MAIN LOOP — MENU CHEAT + DEBUG
-    // ═══════════════════════════════════════════════════════
-    int dbgCounter = 0;
+    // ─── 5. MAIN RENDER LOOP ───
     while (true) {
         global_anim_time += 0.016f;
         drawBegin();
         ui::menu::render();
         drawEnd();
         usleep(2000);
-
-        // ─── DEBUG LOG TIAP 5 DETIK ───
-        if (++dbgCounter >= 2500) {  // ~5 detik
-            dbgCounter = 0;
-
-            size_t nPlayers = 0;
-            {
-                std::lock_guard<std::mutex> lk(data::players_mutex);
-                nPlayers = data::players.size();
-            }
-
-            printf(FG_BCYAN "[DBG] " RST
-                   "inMatch=%d | players=%zu | aim=%d | nobita=%d\n",
-                   (int)data::inMatch.load(std::memory_order_relaxed),
-                   nPlayers,
-                   (int)AimSilentEnabled,
-                   (int)AimSilentNobita);
-            fflush(stdout);
-        }
     }
+
     return 0;
 }
 
@@ -326,7 +182,10 @@ int main(int argc, char** argv) {
     if (argc >= 2) {
         if (strcmp(argv[1], "ffmax") == 0) {
             g_targetGame = GAME_FF_MAX;
-            printf(FG_BGREEN "  [+] Target: " FG_BYELLOW "Free Fire MAX\n" RST);
+            printf(FG_BGREEN "  [+] Target forced: " FG_BYELLOW "Free Fire MAX\n" RST);
+        } else if (strcmp(argv[1], "ffvn") == 0) {
+            g_targetGame = GAME_FF_VN;
+            printf(FG_BGREEN "  [+] Target forced: " FG_BYELLOW "Free Fire VN\n" RST);
         }
     }
 

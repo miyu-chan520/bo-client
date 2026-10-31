@@ -3,26 +3,20 @@
 #include "bar.hpp"
 #include "imgui.h"
 #include "imgui_internal.h"
+#include "Android_draw/draw.h"
 #include "protect/oxorany.hpp"
 #include "styles/styles.h"
 #include <cmath>
 #include <cstdio>
 #include <string>
-#include <atomic>
-#include <mutex>
 #include <inttypes.h>
 #include <unordered_map>
-#include "../func/esp.hpp"
+#include "func/esp.hpp"
 #include "cfg.hpp"
-#include "../game/features.hpp"
-#include "../game/scanner.hpp"
-#include "../bypass/bypass.hpp"
-#include "../game/data.hpp"
+#include "game/AimSilent.h"
 
 extern float g_sw;
 extern float g_sh;
-extern std::atomic<bool> menu_visible;
-extern float global_anim_time;
 
 namespace ui::menu {
     using namespace style;
@@ -30,23 +24,14 @@ namespace ui::menu {
     // ============================================
     // STATE
     // ============================================
-    static float  ma     = 1.0f;
+    static float  ma     = 0.f;
     static int    tab    = 0;
     static bool   drag   = false;
     static ImVec2 doff(0, 0);
-    static ImVec2 g_menu_pos(100.f, 100.f);
+    static ImVec2 g_menu_pos(-1.f, -1.f);
 
     static constexpr float R  = 10.f;
     static constexpr float Rt = 6.f;
-
-    static const char* tabTitles[] = {
-        "DASHBOARD",
-        "SAKURA AIM",
-        "VISUALS",
-        "EXPLOITS",
-        "BYPASS",
-        "SETTINGS"
-    };
 
     // ============================================
     // ANIMATION
@@ -71,19 +56,19 @@ namespace ui::menu {
     }
 
     // ============================================
-    // COLOR HELPERS (Sakura Theme Integration)
+    // COLOR HELPERS
     // ============================================
-    static inline ImU32 C_TextMain()    { return col(UITheme::text,          content_alpha); }
-    static inline ImU32 C_TextSec()     { return col(UITheme::text_dim,      content_alpha); }
-    static inline ImU32 C_TextDim()     { return col(UITheme::text_dim,      content_alpha * 0.7f); }
-    static inline ImU32 C_BgDark()      { return col(UITheme::sakura_bg,     content_alpha); }
-    static inline ImU32 C_BgSidebar()   { return col(UITheme::sidebar,       content_alpha); }
-    static inline ImU32 C_BgCard()      { return col(UITheme::sakura_panel,  content_alpha); }
-    static inline ImU32 C_BgCardHov()   { return col(UITheme::sakura_widget, content_alpha); }
-    static inline ImU32 C_Border()      { return col(UITheme::border,        content_alpha); }
-    static inline ImU32 C_Accent()      { return col(UITheme::sakura_accent, content_alpha); }
-    static inline ImU32 C_AccentBright(){ return col(UITheme::sakura_light,  content_alpha); }
-    static inline ImU32 C_AccentDim()   { return col(UITheme::sakura_accent, content_alpha * 0.25f); }
+    static inline ImU32 C_TextMain()    { return col(UITheme::text,       content_alpha); }
+    static inline ImU32 C_TextSec()     { return col(UITheme::text_dim,   content_alpha); }
+    static inline ImU32 C_TextDim()     { return col(UITheme::text_dim,   content_alpha * 0.7f); }
+    static inline ImU32 C_BgDark()      { return col(UITheme::bg,         content_alpha); }
+    static inline ImU32 C_BgSidebar()   { return col(UITheme::sidebar,    content_alpha); }
+    static inline ImU32 C_BgCard()      { return col(UITheme::panel,      content_alpha); }
+    static inline ImU32 C_BgCardHov()   { return col(UITheme::widget,     content_alpha); }
+    static inline ImU32 C_Border()      { return col(UITheme::border,     content_alpha); }
+    static inline ImU32 C_Accent()      { return col(UITheme::accent,     content_alpha); }
+    static inline ImU32 C_AccentBright(){ return col(UITheme::accent_light, content_alpha); }
+    static inline ImU32 C_AccentDim()   { return col(UITheme::accent, content_alpha * 0.25f); }
     static inline ImU32 C_Success()     { return IM_COL32(52, 199, 89, (int)(content_alpha * 255)); }
     static inline ImU32 C_Danger()      { return IM_COL32(255, 69, 58, (int)(content_alpha * 255)); }
 
@@ -158,59 +143,132 @@ namespace ui::menu {
             dl->AddText(ImGui::GetFont(), 11.f,
                 {vx + 8, pos.y + 3}, C_TextMain(), valStr);
 
-            float ty = pos.y + 26.f, tw2 = avail;
+            float ty = pos.y + 28.f, tw2 = avail;
             float rawPct = (maxV > minV) ? ImClamp((*value-minV)/(maxV-minV),0.f,1.f) : 0.f;
             float pct = NS_Anim(std::string(id)+"#pct", rawPct, 22.f);
             dl->AddRectFilled({pos.x, ty}, {pos.x+tw2, ty+3},
                 IM_COL32(42,42,50,(int)(content_alpha*255)), 2.f);
             dl->AddRectFilled({pos.x, ty}, {pos.x+tw2*pct, ty+3}, C_Accent(), 2.f);
+            if (pct > 0.01f) {
+                dl->AddRect({pos.x, ty}, {pos.x+tw2*pct, ty+3},
+                    (C_Accent() & 0x00FFFFFF) | ((ImU32)90 << 24), 2.f, 0, 1.f);
+            }
+            dl->AddCircleFilled({pos.x+tw2*pct, ty+1.5f}, 6.f, IM_COL32(255,255,255,255));
+            dl->AddCircle({pos.x+tw2*pct, ty+1.5f}, 6.f, C_Accent(), 16, 1.5f);
+            ImGui::SetCursorScreenPos({pos.x, ty-6});
+            ImGui::SetNextItemWidth(tw2);
         }
-        ImGui::SetCursorScreenPos({pos.x, pos.y + 22.f});
-        ImGui::InvisibleButton("slider", {avail, 14.f});
-        if (ImGui::IsItemActive()) {
-            float mouseX = ImGui::GetIO().MousePos.x - pos.x;
-            float pct = ImClamp(mouseX / avail, 0.f, 1.f);
-            *value = minV + pct * (maxV - minV);
-        }
-        ImGui::Dummy(ImVec2(0, 4));
+        bool changed = ImGui::SliderFloat("##s", value, minV, maxV, "");
+        ImGui::Dummy(ImVec2(0, 10));
         ImGui::PopID();
-        return false;
+        return changed;
     }
 
-    static void NS_InfoRow(const char* label, const char* value, ImU32 valCol = 0) {
+    static bool NS_Button(const char* id, const char* label, ImVec2 size, bool accent = true) {
+        ImGui::PushID(id);
+        ImVec2 pos = ImGui::GetCursorScreenPos();
+        bool hover = ImGui::IsMouseHoveringRect(pos, {pos.x+size.x, pos.y+size.y});
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        if (dl) {
+            std::string key = std::string(id)+"#b";
+            float hov = NS_Anim(key+"hov", hover?1.f:0.f, 20.f);
+            ImVec2 a = pos, b = {pos.x+size.x, pos.y+size.y};
+            ImU32 bg = accent ? NS_Lerp(C_Accent(), C_AccentBright(), hov)
+                              : NS_Lerp(C_BgCard(), C_BgCardHov(), hov);
+            dl->AddRectFilled(a, b, bg, 5.f);
+            if (accent && hov > 0.1f) {
+                dl->AddRect(a, b, (C_AccentBright() & 0x00FFFFFF) | ((ImU32)(120*hov) << 24),
+                            5.f, 0, 1.f);
+            }
+            if (!accent) {
+                dl->AddRect(a, b, C_Border(), 5.f, 0, 1.f);
+            }
+            float lw = ImGui::CalcTextSize(label).x;
+            dl->AddText({pos.x + (size.x-lw)*0.5f, pos.y + size.y*0.5f - 7},
+                accent ? IM_COL32(255,255,255,255) : C_TextMain(), label);
+        }
+        ImGui::SetCursorScreenPos(pos);
+        ImGui::InvisibleButton("btn", size);
+        bool clicked = ImGui::IsItemClicked();
+        ImGui::Dummy(size);
+        ImGui::PopID();
+        return clicked;
+    }
+
+    static void NS_InfoRow(const char* label, const char* value, ImU32 valueColor = 0) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImVec2 pos = ImGui::GetCursorScreenPos();
+        float avail = ImGui::GetContentRegionAvail().x;
+        float rh = 28.f;
+        bool hov = ImGui::IsMouseHoveringRect(pos, {pos.x+avail, pos.y+rh});
+        if (dl) {
+            if (hov) {
+                dl->AddRectFilled({pos.x, pos.y}, {pos.x+avail, pos.y+rh}, C_BgCardHov(), 4.f);
+                dl->AddRectFilled({pos.x, pos.y+6}, {pos.x+2, pos.y+rh-6}, C_Accent(), 1.f);
+            }
+            dl->AddText(ImGui::GetFont(), 12.f, {pos.x+10, pos.y+7}, C_TextDim(), label);
+            float vw = ImGui::CalcTextSize(value).x;
+            ImU32 fc = valueColor ? valueColor : C_TextMain();
+            dl->AddText(ImGui::GetFont(), 12.f, {pos.x+avail-vw-10, pos.y+7}, fc, value);
+        }
+        ImGui::Dummy(ImVec2(0, rh+2));
+    }
+
+    static bool NS_ComboRow(const char* id, const char* label, int* value,
+                            const char** items, int itemCount) {
+        ImGui::PushID(id);
+        float avail = ImGui::GetContentRegionAvail().x;
+        ImVec2 pos = ImGui::GetCursorScreenPos();
+        float h = 34.f;
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        if (dl) {
+            dl->AddRectFilled(pos, {pos.x+avail, pos.y+h}, C_BgDark(), 5.f);
+            dl->AddRect(pos, {pos.x+avail, pos.y+h}, C_Border(), 5.f, 0, 1.f);
+            dl->AddText(ImGui::GetFont(), 12.f, {pos.x+12, pos.y+10}, C_TextDim(), label);
+            int cur = *value;
+            const char* curText = (cur>=0 && cur<itemCount) ? items[cur] : "?";
+            float cw = ImGui::CalcTextSize(curText).x;
+            dl->AddText(ImGui::GetFont(), 12.f,
+                {pos.x+avail-cw-30, pos.y+10}, C_TextMain(), curText);
+            dl->AddText(ImGui::GetFont(), 9.f,
+                {pos.x+avail-18, pos.y+13}, C_TextDim(), "\u25BC");
+        }
+        ImGui::PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(0,0,0,0));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(0,0,0,0));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive,  IM_COL32(0,0,0,0));
+        ImGui::PushStyleColor(ImGuiCol_PopupBg,        C_BgCard());
+        ImGui::PushStyleColor(ImGuiCol_Header,         C_Accent());
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered,  C_AccentBright());
+        ImGui::PushStyleColor(ImGuiCol_HeaderActive,   C_AccentBright());
+        ImGui::PushStyleColor(ImGuiCol_Text,           C_TextMain());
+        ImGui::SetCursorScreenPos({pos.x+4, pos.y+4});
+        ImGui::SetNextItemWidth(avail-8);
+        bool changed = ImGui::Combo("##combo", value, items, itemCount);
+        ImGui::PopStyleColor(8);
+        ImGui::PopID();
+        ImGui::Dummy(ImVec2(0, 4));
+        return changed;
+    }
+
+    static void NS_ColorEdit(const char* id, const char* label, ImVec4* color) {
+        ImGui::PushID(id);
         float avail = ImGui::GetContentRegionAvail().x;
         ImVec2 pos = ImGui::GetCursorScreenPos();
         ImDrawList* dl = ImGui::GetWindowDrawList();
         if (dl) {
-            dl->AddText(ImGui::GetFont(), 11.f, pos, C_TextDim(), label);
-            float vw = ImGui::CalcTextSize(value).x;
-            dl->AddText(ImGui::GetFont(), 11.f, {pos.x + avail - vw, pos.y},
-                        valCol ? valCol : C_TextMain(), value);
+            dl->AddText(ImGui::GetFont(), 12.f, {pos.x, pos.y+8}, C_TextSec(), label);
+            ImU32 colU32 = ImGui::ColorConvertFloat4ToU32(*color);
+            float sw = 24.f;
+            ImVec2 sp = {pos.x + avail - sw - 8.f, pos.y + 4.f};
+            dl->AddRectFilled(sp, {sp.x+sw, sp.y+sw}, colU32, 4.f);
+            dl->AddRect(sp, {sp.x+sw, sp.y+sw}, C_Border(), 4.f, 0, 1.f);
         }
-        ImGui::Dummy({0, 18.f});
-    }
-
-    static bool NS_Button(const char* id, const char* label, ImVec2 size = {0, 0}, bool primary = false) {
-        ImGui::PushID(id);
-        float w = size.x > 0 ? size.x : ImGui::GetContentRegionAvail().x;
-        float h = size.y > 0 ? size.y : 28.f;
-        ImVec2 pos = ImGui::GetCursorScreenPos();
-        ImGui::InvisibleButton("btn", {w, h});
-        bool clicked = ImGui::IsItemClicked();
-        bool hov = ImGui::IsItemHovered();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        if (dl) {
-            ImU32 bgCol = primary ? (hov ? C_AccentBright() : C_Accent())
-                                  : (hov ? C_BgCardHov() : C_BgCard());
-            dl->AddRectFilled(pos, {pos.x+w, pos.y+h}, bgCol, 5.f);
-            dl->AddRect(pos, {pos.x+w, pos.y+h}, C_Border(), 5.f, 0, 1.f);
-            ImVec2 ts = ImGui::CalcTextSize(label);
-            dl->AddText(ImGui::GetFont(), 11.f,
-                {pos.x + (w - ts.x)*0.5f, pos.y + (h - ts.y)*0.5f},
-                primary ? IM_COL32(255,255,255,255) : (hov ? C_TextMain() : C_TextSec()), label);
-        }
+        ImGui::SetCursorScreenPos({pos.x + avail - 70.f, pos.y + 4.f});
+        ImGui::ColorEdit4("##ce_edit", &color->x,
+            ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel |
+            ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_NoSidePreview);
+        ImGui::Dummy({0, 4.f});
         ImGui::PopID();
-        return clicked;
     }
 
     // ============================================
@@ -223,98 +281,234 @@ namespace ui::menu {
         float card1H = 170.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "System Architecture", "Zygisk Internal");
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Information"), "Info");
         ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
-        NS_InfoRow("Client Architecture", "Zygisk Internal In-Process", C_Accent());
-        NS_InfoRow("Target Mode", "Free Fire & FF MAX");
-        NS_InfoRow("License State", "VIP Permanent (NoKey)", C_Success());
-        NS_InfoRow("Bypass Engine", bypass::is_anogs_hooked() ? "3-Layer Active (Shielded)" : "Active", C_Success());
+        NS_InfoRow(oxorany("Client"), oxorany("NEXORA VIP"), C_Accent());
+        NS_InfoRow(oxorany("Version"), oxorany("2.0 VIP"));
+        NS_InfoRow(oxorany("Target"), proc::pkg_name[0] ? proc::pkg_name : oxorany("com.dts.freefireth"));
         char libBuf[64];
-        snprintf(libBuf, sizeof(libBuf), "0x%lx", (unsigned long)scanner::g_Offsets.il2cpp_base);
-        NS_InfoRow("libil2cpp Base", libBuf);
+        snprintf(libBuf, sizeof(libBuf), "0x%lx", (unsigned long)proc::lib);
+        NS_InfoRow(oxorany("Library"), libBuf);
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
-        float card2H = 90.f;
+        float card2H = 100.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, "Runtime Telemetry");
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Live Stats"));
         ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
         char fpsT[16]; snprintf(fpsT, sizeof(fpsT), "%.0f", ImGui::GetIO().Framerate);
-        dl->AddText(ImGui::GetFont(), 26.f, {cp2.x+20, cp2.y+44}, C_Success(), fpsT);
-        dl->AddText(ImGui::GetFont(), 10.f, {cp2.x+70, cp2.y+54}, C_TextDim(), "FPS");
+        ImU32 fc = ImGui::GetIO().Framerate > 55 ? C_Success()
+                 : (ImGui::GetIO().Framerate > 30 ? IM_COL32(255,180,40,(int)(content_alpha*255)) : C_Danger());
+        dl->AddText(ImGui::GetFont(), 28.f, {cp2.x+20, cp2.y+48}, fc, fpsT);
+        dl->AddText(ImGui::GetFont(), 11.f,
+            {cp2.x+22+ImGui::CalcTextSize(fpsT).x * 28.f / ImGui::GetFontSize(), cp2.y+64},
+            C_TextDim(), "FPS");
 
-        bool inM = data::inMatch.load();
-        dl->AddText(ImGui::GetFont(), 13.f, {cp2.x + cw*0.45f, cp2.y+48}, inM ? C_Success() : C_TextDim(),
-                    inM ? "In Match" : "Lobby");
-
-        char pbuf[32];
-        snprintf(pbuf, sizeof(pbuf), "%zu entities", data::players.size());
-        dl->AddText(ImGui::GetFont(), 12.f, {cp2.x + cw - 90.f, cp2.y+48}, C_TextMain(), pbuf);
+        char scr[32];
+        snprintf(scr, sizeof(scr), "%.0f x %.0f", g_sw, g_sh);
+        float sx = cp2.x + cw*0.5f;
+        dl->AddText(ImGui::GetFont(), 10.f, {sx, cp2.y+52}, C_TextDim(), "SCREEN");
+        dl->AddText(ImGui::GetFont(), 13.f, {sx, cp2.y+68}, C_TextMain(), scr);
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
-        ImGui::Dummy({0, 20});
+        ImGui::Dummy({0,0});
+
+        float card3H = 56.f;
+        ImVec2 cp3 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp3, cw, card3H);
+        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Match Status"));
+        bool inM = data::inMatch.load();
+        ImU32 mCol = inM ? C_Success() : C_TextDim();
+        dl->AddText(ImGui::GetFont(), 13.f,
+            {cp3.x+16, cp3.y+40}, mCol,
+            inM ? "In Match" : "Waiting for match...");
+
+        char pbuf[32];
+        snprintf(pbuf, sizeof(pbuf), "%zu players", data::players.size());
+        float pw = ImGui::CalcTextSize(pbuf).x;
+        dl->AddText(ImGui::GetFont(), 11.f,
+            {cp3.x+cw-pw-16, cp3.y+42}, C_TextSec(), pbuf);
+
+        ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
+        ImGui::Dummy({0, 40});
     }
 
     // ============================================
-    // TAB 1: COMBAT (Aimbot, Silent Aim, AutoKill)
+    // TAB 1: COMBAT & EXPLOITS (6 Core Features)
     // ============================================
-    static void tab_combat(float a) {
+    static void tab_combat_exploits(float a) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         float cw = ImGui::GetContentRegionAvail().x;
+        float colW = (cw - 32 - 24) * 0.5f;
 
-        float card1H = 260.f;
+        // ── Card 1: Aim & Damage Redirection ──
+        float card1H = 250.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Target Acquisition", "Silent & Memory");
-        ImGui::SetCursorScreenPos({cp.x+16, cp.y+40});
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Silent Aim & AutoKill"), "Combat");
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
-        NS_Toggle("cb_aim", "Master Aimbot", &cfg::combat::aim_enable);
-        NS_Toggle("cb_silent", "Silent Aim (Headshot Lock)", &cfg::combat::silent_aim);
-        NS_Toggle("cb_vis", "Visible Check Only", &cfg::combat::aim_visible_only);
-        NS_Slider("cb_fov", "Aim FOV Radius", &cfg::combat::aim_fov, 10.0f, 360.0f, " px");
-        NS_Slider("cb_smooth", "Aim Smoothing", &cfg::combat::aim_smooth, 1.0f, 20.0f);
+        ImGui::PushID("aim_cols");
+        ImGui::Columns(2, "aim_cols_id", false);
+        ImGui::SetColumnWidth(0, colW + 12);
+        ImGui::SetColumnWidth(1, colW + 12);
+
+        NS_Toggle("aim_silent",   oxorany("Silent Aim"),     &AimSilentEnabled);
+        NS_Toggle("aim_nobita",   oxorany("Nobita Lock"),    &AimSilentNobita);
+        NS_Toggle("aim_autokill", oxorany("AutoKill (P20)"), &cfg::combat::autokill);
+        NS_Toggle("aim_underk",   oxorany("UnderKill"),      &cfg::combat::underkill);
+
+        ImGui::NextColumn();
+
+        NS_Toggle("aim_vis",      oxorany("Visible Only"),   &cfg::combat::aim_visible_only);
+        NS_Toggle("chams_wall",   oxorany("Chams Wallhack"), &cfg::visual::chams_enable);
+        NS_Toggle("tele_kill",    oxorany("AutoTeleKill"),   &cfg::movement::tele_kill);
+
+        ImGui::Columns(1);
+        ImGui::PopID();
+
+        NS_Slider("aim_fov",      oxorany("Silent FOV"),     &cfg::combat::aim_fov, 30.f, 360.f, "°");
+        NS_Slider("underk_depth", oxorany("UnderKill Depth"), &cfg::combat::underkill_depth, 2.f, 25.f, "m");
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
 
-        float card2H = 170.f;
+        // ── Card 2: Movement & Physics Hacks (RiverMod) ──
+        float card2H = 220.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, "Lethal Exploits", "Instant Damage");
-        ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+40});
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Movement & Physics Hacks (RiverMod)"), "Exploit");
+        ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
-        NS_Toggle("cb_autokill", "AutoKill (Iterative Mass Damage)", &cfg::combat::autokill);
-        NS_Toggle("cb_underkill", "UnderKill (Shoot Through Terrain)", &cfg::combat::underkill);
-        NS_Slider("cb_ukdepth", "UnderKill Depth", &cfg::combat::underkill_depth, 5.0f, 30.0f, " m");
+        ImGui::PushID("move_cols");
+        ImGui::Columns(2, "move_cols_id", false);
+        ImGui::SetColumnWidth(0, colW + 12);
+        ImGui::SetColumnWidth(1, colW + 12);
+
+        NS_Toggle("fly_hack",    oxorany("Fly Hack"),       &cfg::movement::fly_enable);
+        NS_Toggle("fly_high",    oxorany("Fly Elevate"),    &cfg::movement::fly_high);
+
+        ImGui::NextColumn();
+
+        NS_Toggle("ghost_mode",  oxorany("Ghost Mode"),     &cfg::movement::ghost_enable);
+        NS_Toggle("speed_timer", oxorany("Speed Timer"),    &cfg::movement::speed_enable);
+
+        ImGui::Columns(1);
+        ImGui::PopID();
+
+        NS_Slider("fly_spd",     oxorany("Fly Speed"),      &cfg::movement::fly_speed, 5.f, 50.f, "");
+        NS_Slider("speed_mult",  oxorany("Speed Scale"),    &cfg::movement::speed_multiplier, 1.0f, 5.0f, "x");
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
-        ImGui::Dummy({0, 20});
+        ImGui::Dummy({0, 40});
     }
 
     // ============================================
-    // TAB 2: VISUALS (ESP & Chams)
+    // TAB 2: ESP
     // ============================================
-    static void tab_visuals(float a) {
+    static void tab_esp(float a) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         float cw = ImGui::GetContentRegionAvail().x;
 
-        float card1H = 270.f;
+        float colW = (cw - 32 - 24) * 0.5f;
+        float card1H = 240.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Visual Overlays", "Internal HUD");
-        ImGui::SetCursorScreenPos({cp.x+16, cp.y+40});
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("ESP"), "Master");
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
 
-        NS_Toggle("esp_box", "2D / 3D Box ESP", &cfg::esp::box);
-        NS_Toggle("esp_skel", "Skeleton Bones ESP", &cfg::esp::skeleton);
-        NS_Toggle("esp_health", "Health & Armor Bar", &cfg::esp::health);
-        NS_Toggle("esp_name", "Player Name Tag", &cfg::esp::name);
-        NS_Toggle("esp_dist", "Distance Indicator", &cfg::esp::distance);
-        NS_Toggle("esp_bot", "Bot Identification Tag", &cfg::esp::bot_tag);
-        NS_Slider("esp_range", "ESP Max Distance", &cfg::esp::max_range, 50.0f, 500.0f, " m");
+        ImGui::PushID("esp_cols");
+        ImGui::Columns(2, "esp_cols_id", false);
+        ImGui::SetColumnWidth(0, colW + 12);
+        ImGui::SetColumnWidth(1, colW + 12);
+
+        NS_Toggle("esp_box",     oxorany("Box"),       &cfg::esp::box);
+        NS_Toggle("esp_name",    oxorany("Name"),      &cfg::esp::name);
+        NS_Toggle("esp_health",  oxorany("Health"),    &cfg::esp::health);
+        NS_Toggle("esp_armor",   oxorany("Armor"),     &cfg::esp::armor);
+        NS_Toggle("esp_dist",    oxorany("Distance"),  &cfg::esp::distance);
+        NS_Toggle("esp_bot",     oxorany("Bot Tag"),   &cfg::esp::bot_tag);
+
+        ImGui::NextColumn();
+
+        NS_Toggle("esp_tracer",  oxorany("Tracer"),    &cfg::esp::tracer);
+        NS_Toggle("esp_skel",    oxorany("Skeleton"),  &cfg::esp::skeleton);
+        NS_Toggle("esp_cross",   oxorany("Crosshair"), &cfg::esp::crosshair);
+        NS_Toggle("esp_weapon",  oxorany("Weapon"),    &cfg::esp::weapon);
+        NS_Toggle("esp_fire",    oxorany("Firing"),    &cfg::esp::firing_ind);
+        NS_Toggle("esp_loot",    oxorany("Loot"),      &cfg::esp::loot);
+
+        ImGui::Columns(1);
+        ImGui::PopID();
+
+        ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
+        ImGui::Dummy({0,0});
+
+        // ── Card 2: Box Settings ──
+        float card2H = 180.f;
+        ImVec2 cp2 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp2, cw, card2H);
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("Box Settings"));
+        ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
+
+        const char* box_types[] = { oxorany("Corner"), oxorany("Full"), oxorany("Glow") };
+        NS_ComboRow("box_type", oxorany("Box Type"), &cfg::esp::box_type, box_types, 3);
+        NS_Slider("box_th", oxorany("Thickness"),  &cfg::esp::box_thickness, 0.5f, 5.0f, "");
+        NS_Slider("box_rd", oxorany("Rounding"),   &cfg::esp::box_rounding,  0.f,  10.f, "");
+        NS_Slider("box_rg", oxorany("Max Range"),  &cfg::esp::max_range,     50.f, 500.f, "m");
+
+        ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
+        ImGui::Dummy({0,0});
+
+        // ── Card 3: Loot Settings ──
+        float card3H = 100.f;
+        ImVec2 cp3 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp3, cw, card3H);
+        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Loot Settings"));
+        ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+44});
+
+        NS_Slider("loot_rg", oxorany("Loot Range"), &cfg::esp::loot_range, 30.f, 300.f, "m");
+
+        ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
+        ImGui::Dummy({0,0});
+
+        // ── Card 4: Colors ──
+        float card4H = 160.f;
+        ImVec2 cp4 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp4, cw, card4H);
+        NS_CardTitle(dl, {cp4.x+16, cp4.y+14}, oxorany("Colors"));
+        ImGui::SetCursorScreenPos({cp4.x+16, cp4.y+44});
+        NS_ColorEdit("col_box",  oxorany("Box"),       &cfg::esp::box_col);
+        NS_ColorEdit("col_vis",  oxorany("Visible"),   &cfg::esp::box_visible);
+        NS_ColorEdit("col_name", oxorany("Name"),      &cfg::esp::name_col);
+        NS_ColorEdit("col_dist", oxorany("Distance"),  &cfg::esp::distance_col);
+
+        ImGui::SetCursorScreenPos({cp4.x, cp4.y+card4H+12});
+        ImGui::Dummy({0, 40});
+    }
+
+    // ============================================
+    // TAB 3: SETTINGS
+    // ============================================
+    static void tab_settings(float a) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        float cw = ImGui::GetContentRegionAvail().x;
+
+        float card1H = 110.f;
+        ImVec2 cp = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp, cw, card1H);
+        NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("Display"));
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
+
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%.0f x %.0f", g_sw, g_sh);
+        NS_InfoRow(oxorany("Screen"), buf);
+        snprintf(buf, sizeof(buf), "%.1f", ImGui::GetIO().Framerate);
+        NS_InfoRow(oxorany("FPS"), buf);
 
         ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
         ImGui::Dummy({0,0});
@@ -322,228 +516,253 @@ namespace ui::menu {
         float card2H = 120.f;
         ImVec2 cp2 = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, "Chams Material Override", "Wall Penetration");
-        ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+40});
-
-        NS_Toggle("chams_en", "Chams (Always Visible Through Walls)", &cfg::visual::chams_enable);
-
-        ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
-        ImGui::Dummy({0, 20});
-    }
-
-    // ============================================
-    // TAB 3: EXPLOITS (Fly Hack, Ghost, Speed, Tele)
-    // ============================================
-    static void tab_exploits(float a) {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        float cw = ImGui::GetContentRegionAvail().x;
-
-        float card1H = 180.f;
-        ImVec2 cp = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Fly Hack (RiverMod Integration)", "Physics Override");
-        ImGui::SetCursorScreenPos({cp.x+16, cp.y+40});
-
-        NS_Toggle("ex_fly", "Fly Hack Master (Zero Gravity)", &cfg::movement::fly_enable);
-        NS_Toggle("ex_flyhigh", "Fly Elevation (Hover Up)", &cfg::movement::fly_high);
-        NS_Slider("ex_flyspeed", "Fly Movement Speed", &cfg::movement::fly_speed, 5.0f, 40.0f);
-
-        ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
-        ImGui::Dummy({0,0});
-
-        float card2H = 200.f;
-        ImVec2 cp2 = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, "Spatial & Temporal Exploits", "Desync");
-        ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+40});
-
-        NS_Toggle("ex_ghost", "Ghost Mode (Network Position Freeze)", &cfg::movement::ghost_enable);
-        NS_Toggle("ex_speed", "Speed Timer Multiplier", &cfg::movement::speed_enable);
-        NS_Slider("ex_spdval", "Game Speed Multiplier", &cfg::movement::speed_multiplier, 1.0f, 4.0f, "x");
-        if (NS_Button("ex_telekill_btn", "Instant AutoTeleKill Behind Enemy", {0, 28}, true)) {
-            cfg::movement::tele_kill = true;
-        }
-
-        ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
-        ImGui::Dummy({0, 20});
-    }
-
-    // ============================================
-    // TAB 4: BYPASS (libanogs & VFS Cloaking)
-    // ============================================
-    static void tab_bypass(float a) {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        float cw = ImGui::GetContentRegionAvail().x;
-
-        float card1H = 175.f;
-        ImVec2 cp = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Anti-Cheat Neutralization", "libanogs.so Hooks");
-        ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
-
-        bool anogs = bypass::is_anogs_hooked();
-        NS_InfoRow("libanogs Detection Hooks", anogs ? "ACTIVE (Bypassed)" : "STANDBY", anogs ? C_Success() : C_TextDim());
-        NS_InfoRow("Anti-Frida Memory Scan", "NEUTRALIZED", C_Success());
-        NS_InfoRow("Anti-Debug TracerPid Scan", "CLOAKED (0)", C_Success());
-        NS_InfoRow("Cheat DLL String Scanner", "BLOCKED (0x0)", C_Success());
-        NS_InfoRow("Mono Integrity Verification", "BYPASSED (0x1)", C_Success());
-
-        ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
-        ImGui::Dummy({0,0});
-
-        float card2H = 130.f;
-        ImVec2 cp2 = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cp2, cw, card2H);
-        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, "Kernel Stealth & /proc Cloaking", "VFS Redirection");
+        NS_CardTitle(dl, {cp2.x+16, cp2.y+14}, oxorany("System"));
         ImGui::SetCursorScreenPos({cp2.x+16, cp2.y+44});
 
-        bool stealth = bypass::is_stealth_active();
-        NS_InfoRow("/proc/self/maps Filter", stealth ? "ACTIVE (Sanitized VFS)" : "PENDING", stealth ? C_Success() : C_TextDim());
-        NS_InfoRow("Zygisk & ShadowHook Mask", "CLOAKED", C_Success());
-        NS_InfoRow("P20/River Memory Watchdog", "NEUTRALIZED", C_Success());
+        snprintf(buf, sizeof(buf), "0x%lx", (unsigned long)proc::lib);
+        NS_InfoRow(oxorany("Library"), buf);
+        snprintf(buf, sizeof(buf), "%d", proc::pid);
+        NS_InfoRow(oxorany("PID"), buf);
 
         ImGui::SetCursorScreenPos({cp2.x, cp2.y+card2H+12});
-        ImGui::Dummy({0, 20});
-    }
+        ImGui::Dummy({0,0});
 
-    // ============================================
-    // TAB 5: SETTINGS & CONFIG
-    // ============================================
-    static void tab_settings(float a) {
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        float cw = ImGui::GetContentRegionAvail().x;
+        float card3H = 96.f;
+        ImVec2 cp3 = ImGui::GetCursorScreenPos();
+        NS_CardBegin(dl, cp3, cw, card3H);
+        NS_CardTitle(dl, {cp3.x+16, cp3.y+14}, oxorany("Actions"));
+        ImGui::SetCursorScreenPos({cp3.x+16, cp3.y+44});
 
-        float card1H = 140.f;
-        ImVec2 cp = ImGui::GetCursorScreenPos();
-        NS_CardBegin(dl, cp, cw, card1H);
-        NS_CardTitle(dl, {cp.x+16, cp.y+14}, "Configuration Profiles", "Memory Storage");
-        ImGui::SetCursorScreenPos({cp.x+16, cp.y+44});
+        if (NS_Button("unload", oxorany("Unload / Exit"), {cw-32, 32}, true)) {
+            exit(0);
+        }
 
-        if (NS_Button("cfg_save", "Save Preset", {110, 30}, true)) {}
-        ImGui::SameLine(0, 10);
-        if (NS_Button("cfg_load", "Load Preset", {110, 30}, false)) {}
-        ImGui::SameLine(0, 10);
-        if (NS_Button("cfg_reset", "Reset All", {110, 30}, false)) {}
-
-        ImGui::SetCursorScreenPos({cp.x, cp.y+card1H+12});
-        ImGui::Dummy({0, 20});
+        ImGui::SetCursorScreenPos({cp3.x, cp3.y+card3H+12});
+        ImGui::Dummy({0, 40});
     }
 
     // ============================================
     // MAIN RENDER ENTRY
     // ============================================
     void render() {
-        // Floating icon / pill toggle when collapsed (Sakura Petal Style)
-        if (!menu_visible.load()) {
-            ImGui::SetNextWindowPos({30.f, 150.f}, ImGuiCond_FirstUseEver);
-            ImGui::SetNextWindowSize({64.f, 64.f});
-            ImGui::Begin("##floating_pill", nullptr,
-                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
-                ImGuiWindowFlags_NoSavedSettings);
-            
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            ImVec2 p = ImGui::GetWindowPos();
-            dl->AddCircleFilled({p.x+32.f, p.y+32.f}, 28.f, C_Accent(), 32);
-            dl->AddCircle({p.x+32.f, p.y+32.f}, 28.f, IM_COL32(255,255,255,220), 32, 1.8f);
-            dl->AddText(ImGui::GetFont(), 13.f, {p.x+14.f, p.y+24.f}, IM_COL32(255,255,255,255), "SAKURA");
+        // 1. ESP and Floating Bar are ALWAYS rendered every frame
+        func::esp::draw();
+        bar::render();
 
-            if (ImGui::InvisibleButton("##pill_btn", {64.f, 64.f})) {
-                menu_visible.store(true);
-            }
-            ImGui::End();
-            return;
+        // 2. Smooth Menu Window Open/Close Animation
+        float dt = ImGui::GetIO().DeltaTime;
+        ma = ma + ((bar::g_open ? 1.f : 0.f) - ma) * ImClamp(12.f*dt, 0.f, 1.f);
+
+        if (ma > 0.01f) {
+            int da = (int)(200*ma*bar::game_alpha());
+            ImGui::GetBackgroundDrawList()->AddRectFilled({0,0},{g_sw,g_sh},IM_COL32(0,0,0,da));
         }
+        if (ma < 0.01f) return;
 
-        // Expanded Main Window
-        float winW = 580.f;
-        float winH = 390.f;
-        ImGui::SetNextWindowSize({winW, winH}, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowPos(g_menu_pos, ImGuiCond_FirstUseEver);
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ma);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0,0});
+        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 8.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 4.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 3));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 4));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(4, 4));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 4.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, 20.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 12.f);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, {0,0,0,0});
+        ImGui::PushStyleColor(ImGuiCol_Border, {0,0,0,0});
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, R);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0, 0});
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, C_BgDark());
-        ImGui::PushStyleColor(ImGuiCol_Border, C_Border());
+        ImVec2 wsz(960.f, 620.f);
+        if (g_menu_pos.x < 0.f) {
+            g_menu_pos = {(g_sw - wsz.x) * 0.5f, (g_sh - wsz.y) * 0.5f};
+        }
+        ImGui::SetNextWindowSize(wsz, ImGuiCond_Always);
+        ImGui::SetNextWindowPos(g_menu_pos, ImGuiCond_Always);
 
-        ImGui::Begin("##bo_main_menu", nullptr,
+        ImGui::Begin("##m", nullptr,
             ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoCollapse);
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+            ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-        ImDrawList* dl = ImGui::GetWindowDrawList();
         ImVec2 wp = ImGui::GetWindowPos();
         ImVec2 ws = ImGui::GetWindowSize();
-        content_alpha = ma;
+        ImVec2 mp = ImGui::GetMousePos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImDrawList* bg = ImGui::GetBackgroundDrawList();
 
-        // Header
-        float headerH = 46.f;
-        dl->AddRectFilled(wp, {wp.x+ws.x, wp.y+headerH}, C_BgSidebar(), R, ImDrawFlags_RoundCornersTop);
-        dl->AddLine({wp.x, wp.y+headerH}, {wp.x+ws.x, wp.y+headerH}, C_Border(), 1.f);
-        dl->AddText(ImGui::GetFont(), 14.f, {wp.x+18.f, wp.y+14.f}, C_AccentBright(), "🌸 SAKURA MODS VIP — BO-CLIENT ZYGISK");
+        bg->AddRectFilled({wp.x-6, wp.y-6}, {wp.x+ws.x+6, wp.y+ws.y+6},
+                          IM_COL32(0,0,0,(int)(35*ma)), R+5.f);
+        bg->AddRectFilled({wp.x-12, wp.y-12}, {wp.x+ws.x+12, wp.y+ws.y+12},
+                          IM_COL32(0,0,0,(int)(15*ma)), R+10.f);
 
-        // Close pill button
-        float cbW = 24.f;
-        ImVec2 cbPos = {wp.x + ws.x - 34.f, wp.y + 11.f};
-        dl->AddCircleFilled({cbPos.x+12.f, cbPos.y+12.f}, 12.f, IM_COL32(255,60,60,180));
-        dl->AddText(ImGui::GetFont(), 11.f, {cbPos.x+9.f, cbPos.y+5.f}, IM_COL32(255,255,255,255), "X");
-        ImGui::SetCursorScreenPos(cbPos);
-        if (ImGui::InvisibleButton("##close_btn", {cbW, cbW})) {
-            menu_visible.store(false);
-        }
+        bg->AddRectFilled(wp, {wp.x+ws.x, wp.y+ws.y}, col(UITheme::bg, ma), R);
+        bg->AddRect(wp, {wp.x+ws.x, wp.y+ws.y}, col(UITheme::border, ma), R);
 
-        // Sidebar Navigation
-        float sidebarW = 125.f;
-        float bodyY = wp.y + headerH;
-        float bodyH = ws.y - headerH;
-        dl->AddRectFilled({wp.x, bodyY}, {wp.x+sidebarW, wp.y+ws.y}, C_BgSidebar(), R, ImDrawFlags_RoundCornersBottomLeft);
-        dl->AddLine({wp.x+sidebarW, bodyY}, {wp.x+sidebarW, wp.y+ws.y}, C_Border(), 1.f);
+        const float headerH = 56.f;
+        const float sidebarW = 140.f;
+        const float footerH = 44.f;
 
-        float navH = 34.f;
-        for (int i = 0; i < 6; ++i) {
-            float ny = bodyY + 12.f + i * (navH + 4.f);
-            bool active = (tab == i);
-            if (active) {
-                dl->AddRectFilled({wp.x, ny}, {wp.x+sidebarW, ny+navH}, C_AccentDim());
-                dl->AddRectFilled({wp.x, ny}, {wp.x+3.f, ny+navH}, C_Accent());
+        bg->AddRectFilled(wp, {wp.x+ws.x, wp.y+headerH},
+                          col(UITheme::sidebar, ma), R, ImDrawFlags_RoundCornersTop);
+        bg->AddLine({wp.x, wp.y+headerH}, {wp.x+ws.x, wp.y+headerH},
+                    col(UITheme::border, ma), 1.f);
+
+        float logoSize = 30.f;
+        float logoX = wp.x + 18.f;
+        float logoY = wp.y + (headerH - logoSize) * 0.5f;
+        bg->AddRectFilled({logoX, logoY}, {logoX+logoSize, logoY+logoSize},
+                          col(UITheme::accent, ma), 7.f);
+        ImVec2 ls = ImGui::CalcTextSize("N");
+        bg->AddText({logoX + (logoSize-ls.x)*0.5f, logoY + (logoSize-ls.y)*0.5f},
+                    IM_COL32(255,255,255,255), "N");
+
+        dl->AddText(ImGui::GetFont(), 14.f, {logoX + logoSize + 12.f, wp.y + 14.f},
+                    col(UITheme::text, ma), "NEXORA VIP");
+        dl->AddText(ImGui::GetFont(), 9.f, {logoX + logoSize + 12.f, wp.y + 32.f},
+                    col(UITheme::text_dim, ma), "FREE FIRE EXPLOIT");
+
+        bg->AddLine({logoX + logoSize + 110.f, wp.y+18.f},
+                    {logoX + logoSize + 110.f, wp.y+38.f},
+                    col(UITheme::border, ma), 1.f);
+
+        const char* tabTitles[] = {"Dashboard", "Combat & Exploits", "ESP", "Settings"};
+        bg->AddText(ImGui::GetFont(), 11.f,
+            {logoX + logoSize + 126.f, wp.y + 24.f},
+            col(UITheme::text_dim, ma), "/");
+        bg->AddText(ImGui::GetFont(), 13.f,
+            {logoX + logoSize + 138.f, wp.y + 21.f},
+            col(UITheme::text, ma), tabTitles[tab]);
+
+        float closeW = 28.f;
+        float closeX = wp.x + ws.x - closeW - 14.f;
+        float closeY = wp.y + (headerH - closeW) * 0.5f;
+        bool hoverClose = ImGui::IsMouseHoveringRect({closeX, closeY},
+                                                      {closeX+closeW, closeY+closeW});
+        if (hoverClose) bg->AddRectFilled({closeX, closeY},
+                                          {closeX+closeW, closeY+closeW},
+                                          col(UITheme::danger, ma), 5.f);
+        float cX = closeX+14, cY = closeY+14, cr = 4.f;
+        bg->AddLine({cX-cr,cY-cr},{cX+cr,cY+cr},
+            hoverClose ? IM_COL32(255,255,255,255) : col(UITheme::text_dim, ma), 1.5f);
+        bg->AddLine({cX-cr,cY+cr},{cX+cr,cY-cr},
+            hoverClose ? IM_COL32(255,255,255,255) : col(UITheme::text_dim, ma), 1.5f);
+
+        ImGui::SetCursorScreenPos({closeX, closeY});
+        ImGui::PushID(9999);
+        if (ImGui::InvisibleButton("hide", {closeW, closeW})) bar::g_open = false;
+        ImGui::PopID();
+
+        float sbY = wp.y + headerH;
+        float sbBot = wp.y + ws.y - footerH;
+        bg->AddRectFilled({wp.x, sbY}, {wp.x+sidebarW, sbBot},
+                          col(UITheme::sidebar, ma));
+        bg->AddLine({wp.x+sidebarW, sbY}, {wp.x+sidebarW, sbBot},
+                    col(UITheme::border, ma), 1.f);
+
+        float navStartY = sbY + 14.f;
+        float navItemH = 36.f;
+        for (int i = 0; i < 4; i++) {
+            float ny = navStartY + i * (navItemH + 2);
+            bool act = (tab == i);
+            bool hov = ImGui::IsMouseHoveringRect({wp.x, ny},
+                                                   {wp.x+sidebarW, ny+navItemH});
+            if (act) {
+                bg->AddRectFilled({wp.x, ny}, {wp.x+sidebarW, ny+navItemH},
+                                  col(UITheme::accent, ma * 0.25f));
+                bg->AddRectFilled({wp.x, ny}, {wp.x+3, ny+navItemH},
+                                  col(UITheme::accent, ma));
+            } else if (hov) {
+                bg->AddRectFilled({wp.x, ny}, {wp.x+sidebarW, ny+navItemH},
+                                  col(UITheme::widget, ma));
             }
-            dl->AddText(ImGui::GetFont(), 10.f, {wp.x+14.f, ny+10.f},
-                        active ? C_AccentBright() : C_TextSec(), tabTitles[i]);
+            char numBuf[4]; snprintf(numBuf, sizeof(numBuf), "%02d", i+1);
+            dl->AddText(ImGui::GetFont(), 9.f,
+                {wp.x+14, ny+13}, act ? col(UITheme::accent, ma) : col(UITheme::text_dim, ma), numBuf);
+            ImU32 txtCol = act ? col(UITheme::text, ma) :
+                          (hov ? col(UITheme::text, ma) : col(UITheme::text_dim, ma));
+            dl->AddText(ImGui::GetFont(), 12.f,
+                {wp.x+34, ny+11}, txtCol, tabTitles[i]);
             ImGui::SetCursorScreenPos({wp.x, ny});
-            if (ImGui::InvisibleButton(tabTitles[i], {sidebarW, navH})) {
-                tab = i;
-            }
+            ImGui::PushID(i+500);
+            if (ImGui::InvisibleButton("nav", {sidebarW, navItemH})) tab = i;
+            ImGui::PopID();
         }
 
-        // Content Area
-        float contentX = wp.x + sidebarW + 16.f;
-        float contentY = bodyY + 14.f;
-        float contentW = ws.x - sidebarW - 32.f;
-        float contentH = bodyH - 28.f;
+        float sFootY = sbBot - 40.f;
+        bg->AddLine({wp.x+12, sFootY}, {wp.x+sidebarW-12, sFootY},
+                    col(UITheme::border, ma), 1.f);
+        dl->AddText(ImGui::GetFont(), 9.f, {wp.x+14, sFootY+10},
+                    col(UITheme::text_dim, ma), "NEXORA v2.0");
+        dl->AddText(ImGui::GetFont(), 8.f, {wp.x+14, sFootY+24},
+                    col(UITheme::accent, ma), "VIP EDITION");
+
+        float contentX = wp.x + sidebarW + 20.f;
+        float contentY = wp.y + headerH + 18.f;
+        float contentW = ws.x - sidebarW - 40.f;
+        float contentH = ws.y - headerH - footerH - 54.f;
 
         ImGui::SetCursorScreenPos({contentX, contentY});
-        ImGui::BeginChild("content_region", {contentW, contentH}, false, ImGuiWindowFlags_NoBackground);
+
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarBg,           IM_COL32(0,0,0,0));
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab,         col(UITheme::accent, ma * 0.7f));
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered,  col(UITheme::accent_light, ma));
+        ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive,   col(UITheme::accent_light, ma));
+
+        ImGui::BeginChild("content", {contentW, contentH}, false,
+                          ImGuiWindowFlags_NoBackground);
+
+        dl = ImGui::GetWindowDrawList();
+        content_w = ImGui::GetContentRegionAvail().x;
+        content_alpha = ma;
 
         switch (tab) {
             case 0: tab_dashboard(ma); break;
-            case 1: tab_combat(ma);    break;
-            case 2: tab_visuals(ma);   break;
-            case 3: tab_exploits(ma);  break;
-            case 4: tab_bypass(ma);    break;
-            case 5: tab_settings(ma);  break;
+            case 1: tab_combat_exploits(ma); break;
+            case 2: tab_esp(ma); break;
+            case 3: tab_settings(ma); break;
         }
 
         ImGui::EndChild();
 
-        // Dragging window by header
-        ImVec2 mp = ImGui::GetIO().MousePos;
-        if (mp.x >= wp.x && mp.x <= wp.x+ws.x-40.f && mp.y >= wp.y && mp.y <= wp.y+headerH) {
+        ImGui::PopStyleColor(4);
+
+        float fy = wp.y + ws.y - footerH;
+        bg->AddRectFilled({wp.x, fy}, {wp.x+ws.x, wp.y+ws.y},
+                          col(UITheme::sidebar, ma), R, ImDrawFlags_RoundCornersBottom);
+        bg->AddLine({wp.x, fy}, {wp.x+ws.x, fy}, col(UITheme::border, ma), 1.f);
+
+        float fbX = wp.x + 18.f;
+        float fbY = fy + 8.f;
+        ImGui::SetCursorScreenPos({fbX, fbY});
+        if (NS_Button("f_save", "Save", {70, 28}, true)) {}
+        ImGui::SameLine(0, 8);
+        if (NS_Button("f_load", "Load", {70, 28}, false)) {}
+        ImGui::SameLine(0, 8);
+        if (NS_Button("f_reset", "Reset", {70, 28}, false)) {}
+
+        const char* fh = "NEXORA VIP";
+        float fhw = ImGui::CalcTextSize(fh).x;
+        dl->AddText(ImGui::GetFont(), 10.f,
+            {wp.x + ws.x - fhw - 90, fy + 16}, col(UITheme::accent, ma), fh);
+        const char* fv = "v2.0";
+        float fvw = ImGui::CalcTextSize(fv).x;
+        dl->AddText(ImGui::GetFont(), 10.f,
+            {wp.x + ws.x - fvw - 16, fy + 16}, col(UITheme::text_dim, ma), fv);
+
+        if ((mp.x>=wp.x && mp.x<=wp.x+ws.x && mp.y>=wp.y && mp.y<=wp.y+headerH)) {
             if (ImGui::IsMouseClicked(0)) {
                 drag = true;
-                doff = {mp.x - wp.x, mp.y - wp.y};
+                doff = {mp.x-wp.x, mp.y-wp.y};
             }
         }
         if (drag) {
             if (ImGui::IsMouseDown(0)) {
-                g_menu_pos = {mp.x - doff.x, mp.y - doff.y};
+                ImVec2 np{mp.x-doff.x, mp.y-doff.y};
+                np.x = ImClamp(np.x, 0.f, g_sw-ws.x);
+                np.y = ImClamp(np.y, 0.f, g_sh-ws.y);
+                g_menu_pos = np;
             } else {
                 drag = false;
             }
@@ -551,6 +770,6 @@ namespace ui::menu {
 
         ImGui::End();
         ImGui::PopStyleColor(2);
-        ImGui::PopStyleVar(2);
+        ImGui::PopStyleVar(12);
     }
 }
