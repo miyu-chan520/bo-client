@@ -174,7 +174,7 @@ static int start_overlay() {
     printf(FG_BBLUE "  [2/3] " RST FG_BWHITE "Initializing security bypass...\n" RST);
     init_bypass();
 
-    // Step 2.5: Initialize Dynamic IL2CPP Offsets (Filesystem Dump + Live RAM Scan)
+    // Step 2.5: Initialize 100% Non-Intrusive Dynamic RAM Scanner (Zero Crash / Pure RPM)
     DynamicOffsets::Init(proc::pid, proc::lib, proc::pkg_name);
 
     printf(FG_BBLUE "  [~] " RST FG_BWHITE "Initializing Aimbot Engine...\n" RST);

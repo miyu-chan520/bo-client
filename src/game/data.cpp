@@ -146,36 +146,48 @@ namespace data {
         std::vector<PlayerData> tmp;
         tmp.reserve(64);
 
-        // 100% Dynamic Base Chain Resolution (Zero Hardcoded Offsets)
-        if (Offsets::GameFacade == 0) {
-            uint64_t gfCls = DynamicOffsets::FindGameFacadeClassInRam(proc::pid, proc::lib);
-            if (gfCls) {
-                DynamicOffsets::ResolveGameFacadeFields(gfCls);
+        // 100% Non-Intrusive Dynamic RAM Resolution (Zero Crash / Pure RPM)
+        static auto s_lastScanTime = std::chrono::steady_clock::time_point::min();
+        auto now = std::chrono::steady_clock::now();
+
+        if (DynamicOffsets::g_gameFacadeClass == 0 && Offsets::GameFacade == 0) {
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_lastScanTime).count();
+            if (elapsed > 1500) {
+                s_lastScanTime = now;
+                uint64_t gfCls = DynamicOffsets::FindGameFacadeClassInRam(proc::pid, proc::lib);
+                if (gfCls) {
+                    DynamicOffsets::ResolveGameFacadeFields(gfCls);
+                }
             }
         }
-        if (Offsets::GameFacade == 0) return;
+        if (DynamicOffsets::g_gameFacadeClass == 0 && Offsets::GameFacade == 0) return;
 
-        uint64_t GfCell = rpm<uint64_t>(proc::lib + Offsets::GameFacade);
-        if (!GfCell || GfCell < 0x100000000) {
-            uint64_t gfCls = DynamicOffsets::FindGameFacadeClassInRam(proc::pid, proc::lib);
-            if (gfCls) {
-                DynamicOffsets::ResolveGameFacadeFields(gfCls);
-                GfCell = rpm<uint64_t>(proc::lib + Offsets::GameFacade);
+        uint64_t GfClass = DynamicOffsets::g_gameFacadeClass;
+        if (!GfClass || GfClass < 0x100000000) {
+            uint64_t GfCell = rpm<uint64_t>(proc::lib + Offsets::GameFacade);
+            if (GfCell >= 0x100000000) {
+                char cName[64] = {0}, cNs[64] = {0};
+                if (DynamicOffsets::GetClassInfo(GfCell, cName, cNs) && strcmp(cName, "GameFacade") == 0) {
+                    GfClass = GfCell;
+                } else {
+                    uint64_t deref = rpm<uint64_t>(GfCell);
+                    if (DynamicOffsets::GetClassInfo(deref, cName, cNs) && strcmp(cName, "GameFacade") == 0) {
+                        GfClass = deref;
+                    }
+                }
             }
+            if (GfClass) DynamicOffsets::g_gameFacadeClass = GfClass;
         }
-        if (!GfCell) return;
-
-        auto GfClass = rpm<uint64_t>(GfCell);
         if (!GfClass) return;
 
         auto StaticFields = rpm<uint64_t>(GfClass + Offsets::GameFacade_P2);
-        if (!StaticFields) return;
+        if (!StaticFields || StaticFields < 0x100000000) return;
 
         auto BaseGame = rpm<uint64_t>(StaticFields + Offsets::BaseGame_CurrentMatchGame);
         if (!BaseGame || BaseGame < 0x100000000) {
             BaseGame = rpm<uint64_t>(StaticFields + Offsets::BaseGame_CurrentGame);
         }
-        if (!BaseGame) {
+        if (!BaseGame || BaseGame < 0x100000000) {
             inMatch.store(false);
             localPlayerAddr.store(0);
             std::lock_guard<std::mutex> lk(players_mutex);
