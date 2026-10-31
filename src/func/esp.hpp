@@ -51,7 +51,7 @@ namespace func::esp {
     // ═══════════════════════════════════════════════════════
     // FORMAT
     // ═══════════════════════════════════════════════════════
-    inline bool ok(const Vector3& v) { return v.x > 0 && v.y > 0 && v.z > 0.001f; }
+    inline bool ok(const Vector3& v) { return v.x > 0 && v.y > 0; }
 
     inline void fmtDist(float d, char* out, size_t n) {
         if (d >= 1000.f) snprintf(out, n, "%.1fkm", d / 1000.f);
@@ -459,93 +459,6 @@ namespace func::esp {
     }
 
     // ═══════════════════════════════════════════════════════
-    // KZ TEAM HUD ADDITIONS: ENEMY COUNTER, 360 RADAR, HEAD DOT
-    // ═══════════════════════════════════════════════════════
-    inline void drawEnemyCounter(ImDrawList* dl, int enemies, int bots) {
-        if (!cfg::esp::enemy_count) return;
-        char buf[64];
-        snprintf(buf, sizeof(buf), "ENEMIES: %d  |  BOTS: %d", enemies, bots);
-        ImVec2 sz = ImGui::CalcTextSize(buf);
-        float padX = 14.f, padY = 5.f;
-        float w = sz.x + padX * 2.f;
-        float h = sz.y + padY * 2.f;
-        float x = (g_sw - w) * 0.5f;
-        float y = 24.f;
-
-        dl->AddRectFilled({x, y}, {x + w, y + h}, IM_COL32(18, 20, 26, 220), 8.f);
-        ImU32 borderCol = (enemies > 0) ? IM_COL32(235, 60, 60, 220) : IM_COL32(60, 220, 100, 220);
-        dl->AddRect({x, y}, {x + w, y + h}, borderCol, 8.f, 0, 1.5f);
-
-        float curX = x + padX;
-        float textY = y + padY;
-
-        char eText[32];
-        snprintf(eText, sizeof(eText), "ENEMIES: %d", enemies);
-        dl->AddText({curX, textY}, IM_COL32(255, 75, 75, 255), eText);
-        curX += ImGui::CalcTextSize(eText).x;
-
-        dl->AddText({curX, textY}, IM_COL32(180, 180, 190, 200), "  |  ");
-        curX += ImGui::CalcTextSize("  |  ").x;
-
-        char bText[32];
-        snprintf(bText, sizeof(bText), "BOTS: %d", bots);
-        dl->AddText({curX, textY}, IM_COL32(255, 200, 50, 255), bText);
-    }
-
-    inline void drawOffscreenRadar(ImDrawList* dl, const PlayerData& p) {
-        if (!cfg::esp::offscreen_radar) return;
-        if (p.isTeammate || p.curHP <= 0) return;
-
-        float cx = g_sw * 0.5f;
-        float cy = g_sh * 0.5f;
-
-        float dx = p.Head.x - cx;
-        float dy = p.Head.y - cy;
-
-        if (p.Head.z <= 0.001f) {
-            dx = -dx;
-            dy = -dy;
-        }
-
-        float len = sqrtf(dx * dx + dy * dy);
-        if (len < 1e-4f) return;
-        dx /= len;
-        dy /= len;
-
-        float pad = 38.f;
-        float minX = pad, maxX = g_sw - pad;
-        float minY = pad, maxY = g_sh - pad;
-
-        float tX = (dx > 0) ? (maxX - cx) / dx : (minX - cx) / dx;
-        float tY = (dy > 0) ? (maxY - cy) / dy : (minY - cy) / dy;
-        float t = (tX < tY) ? tX : tY;
-
-        float arrowX = cx + dx * t;
-        float arrowY = cy + dy * t;
-
-        float arrowSize = 10.f;
-        ImVec2 p1 = {arrowX + dx * arrowSize, arrowY + dy * arrowSize};
-        ImVec2 p2 = {arrowX - dy * (arrowSize * 0.6f), arrowY + dx * (arrowSize * 0.6f)};
-        ImVec2 p3 = {arrowX + dy * (arrowSize * 0.6f), arrowY - dx * (arrowSize * 0.6f)};
-
-        ImU32 col = p.isBot ? IM_COL32(255, 190, 40, 240) : (p.isVisible ? IM_COL32(50, 230, 80, 240) : IM_COL32(240, 50, 50, 240));
-        dl->AddTriangleFilled(p1, p2, p3, col);
-
-        char dBuf[16];
-        snprintf(dBuf, sizeof(dBuf), "%.0fm", p.distance);
-        ImVec2 dSz = ImGui::CalcTextSize(dBuf);
-        dl->AddText({arrowX - dSz.x * 0.5f, arrowY + 6.f}, IM_COL32(255, 255, 255, 230), dBuf);
-    }
-
-    inline void drawHeadDot(ImDrawList* dl, const PlayerData& p) {
-        if (!cfg::esp::head_dot) return;
-        if (p.Head.z <= 0.001f || p.Head.x < 0 || p.Head.y < 0 || p.Head.x > g_sw || p.Head.y > g_sh) return;
-        ImU32 col = p.isVisible ? IM_COL32(50, 230, 80, 240) : IM_COL32(255, 50, 50, 240);
-        dl->AddCircleFilled({p.Head.x, p.Head.y}, 3.5f, col);
-        dl->AddCircle({p.Head.x, p.Head.y}, 4.5f, IM_COL32(0, 0, 0, 180), 0, 1.2f);
-    }
-
-    // ═══════════════════════════════════════════════════════
     // MAIN DRAW
     // ═══════════════════════════════════════════════════════
     inline void draw() {
@@ -559,35 +472,13 @@ namespace func::esp {
             snap = data::players;
         }
 
-        // 1. Calculate & Draw Alive Enemy & Bot Counts (KZ HUD)
-        int enemyCount = 0;
-        int botCount = 0;
-        for (const auto& p : snap) {
-            if (p.isTeammate || p.curHP <= 0) continue;
-            if (p.isBot) botCount++;
-            else enemyCount++;
-        }
-        drawEnemyCounter(dl, enemyCount, botCount);
-
         ImVec2 anchor(g_sw * 0.5f, 0.f);
-        if (cfg::esp::tracer_pos == 0) anchor = ImVec2(g_sw * 0.5f, g_sh);
-        else if (cfg::esp::tracer_pos == 1) anchor = ImVec2(g_sw * 0.5f, g_sh * 0.5f);
-        else anchor = ImVec2(g_sw * 0.5f, 0.f);
 
         for (const auto& p : snap) {
-            if (p.isTeammate) continue;
-            if (p.curHP <= 0 || p.isDead) continue;
+            if (p.Head.x < 0 || p.Head.y < 0) continue;
+            if (p.Toe.x  < 0 || p.Toe.y  < 0) continue;
+
             if (p.distance > cfg::esp::max_range) continue;
-
-            // KZ 360 Off-Screen Threat Radar
-            bool isOffscreen = (p.Head.z <= 0.001f) || (p.Head.x < 0 || p.Head.x > g_sw || p.Head.y < 0 || p.Head.y > g_sh);
-            if (isOffscreen) {
-                drawOffscreenRadar(dl, p);
-                continue;
-            }
-
-            // KZ Head Dot on screen
-            drawHeadDot(dl, p);
 
             SkeletonBox sb = computeSkeletonBox(p);
             if (!sb.valid) continue;
@@ -637,9 +528,11 @@ namespace func::esp {
 
         if (cfg::esp::loot)      drawLoot();
         if (cfg::esp::crosshair) drawCrosshair(dl);
-        if (cfg::aim::draw_fov) {
-            dl->AddCircle(ImVec2(g_sw * 0.5f, g_sh * 0.5f), cfg::aim::fov,
-                          toU32(cfg::aim::fov_col), 64, 1.5f);
-        }
+    }
+}
+
+namespace esp {
+    inline void draw_esp() {
+        func::esp::draw();
     }
 }

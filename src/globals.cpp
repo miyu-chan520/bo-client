@@ -1,5 +1,5 @@
 // src/globals.cpp
-#include "globals.h"
+#include <atomic>
 
 float global_anim_time = 0.0f;
 float g_ui_scale = 1.0f;

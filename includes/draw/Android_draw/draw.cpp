@@ -35,7 +35,7 @@ bool initGUI_draw(uint32_t _screen_x, uint32_t _screen_y, bool log) {
 }
 
 bool init_egl(uint32_t _screen_x, uint32_t _screen_y, bool log) {
-    // ── Enable input event dispatch for overlay touch interaction ──
+    // ── Block untrusted touches (biar overlay bisa disentuh) ──
     FILE* fp = popen("settings put system block_untrusted_touches 0", "r");
     if (fp) {
         char buffer[256];
@@ -46,15 +46,16 @@ bool init_egl(uint32_t _screen_x, uint32_t _screen_y, bool log) {
     system("settings put secure block_untrusted_touches 0 > /dev/null 2>&1");
 
     // ═══════════════════════════════════════════════════════
-    // HIDE FROM SCREENSHOT & RECORDING
-    //   arg4 (hide)   : true = hide from recorder & screenshot
-    //   arg5 (secure) : true = secure surface flag (eSecure 0x80/0x40)
+    // HIDE RECORD
+    //   arg4 (hide)   : true = sembunyikan dari recorder & screenshot
+    //                   false = tampil normal
+    //   arg5 (secure) : reserved (header baru sudah handle via `hide`)
     // ═══════════════════════════════════════════════════════
     ::native_window = android::ANativeWindowCreator::Create(
-        "SurfaceView[Overlay]",
+        "com.android.systemui",
         _screen_x, _screen_y,
-        true,            // Screen capture protection (hide from screencut & recording)
-        true             // Secure surface flag
+        g_hideRecord,    // ← hide
+        false            // ← secure (sudah ditangani header)
     );
 
     ANativeWindow_acquire(native_window);
@@ -116,7 +117,7 @@ bool ImGui_init() {
     io.IniFilename = NULL;
 
     // ═══════════════════════════════════════════════════════
-    // Custom font loaded from font_data.hpp — optimized for modern high-DPI displays
+    // FONT CUSTOM dari font_data.hpp — tajam untuk HP modern
     // ═══════════════════════════════════════════════════════
     ImFontConfig cfg;
     cfg.FontData             = (void*)font_ttf;
@@ -129,11 +130,11 @@ bool ImGui_init() {
 
     // Menu font
     ImFont* mainFont = io.Fonts->AddFontFromMemoryTTF(
-        (void*)font_ttf, (int)sizeof(font_ttf), 26.f, &cfg);
+        (void*)font_ttf, (int)sizeof(font_ttf), 20.f, &cfg);
 
     // ESP font
     ImFont* espFontCfg = io.Fonts->AddFontFromMemoryTTF(
-        (void*)font_ttf, (int)sizeof(font_ttf), 22.f, &cfg);
+        (void*)font_ttf, (int)sizeof(font_ttf), 18.f, &cfg);
 
     fontBold   = mainFont;
     fontMedium = mainFont;
@@ -143,26 +144,20 @@ bool ImGui_init() {
     io.FontDefault = mainFont;
     io.Fonts->Build();
 
-    ImGui::GetStyle().ScaleAllSizes(1.35f);
+    ImGui::GetStyle().ScaleAllSizes(1.25f);
 
     ::g_Initialized = true;
     return true;
 }
 
 void drawBegin() {
-    touch::dispatch_events();
-
-    static int frame_counter = 0;
-    if (++frame_counter >= 60) {
-        frame_counter = 0;
-        screen_config();
-        if (::orientation != displayInfo.orientation) {
-            ::orientation = displayInfo.orientation;
-            touch::update(displayInfo.width, displayInfo.height, displayInfo.orientation);
-            if (g_window) {
-                g_window->Pos.x = 100;
-                g_window->Pos.y = 125;
-            }
+    screen_config();
+    if (::orientation != displayInfo.orientation) {
+        ::orientation = displayInfo.orientation;
+        touch::update(displayInfo.width, displayInfo.height, displayInfo.orientation);
+        if (g_window) {
+            g_window->Pos.x = 100;
+            g_window->Pos.y = 125;
         }
     }
 
@@ -173,7 +168,6 @@ void drawBegin() {
 
 void drawEnd() {
     ImGui::Render();
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     eglSwapBuffers(display, surface);

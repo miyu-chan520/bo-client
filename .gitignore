@@ -1,15 +1,6 @@
 obj/
 libs/
-*.o
-*.d
 *.bak
 .DS_Store
-Thumbs.db
-dump*.cs
-offset*.txt
-script.json
-GEMINI.MD
-skills-lock.json
-*.zip
-prompt.txt
-.vs/
+*.swp
+*.o

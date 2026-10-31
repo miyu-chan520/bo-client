@@ -8,6 +8,7 @@ struct PlayerData {
     // ── Box ──
     Vector3  Head;
     Vector3  Toe;
+    Vector3  headPos; // 3D world position
 
     // ── Bones ──
     Vector3  Hip;
@@ -26,11 +27,8 @@ struct PlayerData {
 
     // ── Meta ──
     bool     isVisible;
-    bool     isKnocked;
-    bool     isDead;
     bool     isBot;
-    int      team;
-    bool     isTeammate;
+    bool     isDead;
     float    distance;
     int      curHP;
     int      maxHP;
@@ -43,14 +41,14 @@ struct PlayerData {
 
     PlayerData()
         : addr(0),
-          Head(Vector3::Zero()), Toe(Vector3::Zero()),
+          Head(Vector3::Zero()), Toe(Vector3::Zero()), headPos(Vector3::Zero()),
           Hip(Vector3::Zero()), Breast(Vector3::Zero()), Root(Vector3::Zero()),
           LShoulder(Vector3::Zero()), RShoulder(Vector3::Zero()),
           LAnkle(Vector3::Zero()), RAnkle(Vector3::Zero()),
           LToe(Vector3::Zero()), RToe(Vector3::Zero()),
           LForeArm(Vector3::Zero()), RForeArm(Vector3::Zero()),
           LHand(Vector3::Zero()), RHand(Vector3::Zero()),
-          isVisible(false), isKnocked(false), isDead(false), isBot(false), team(-1), isTeammate(false), distance(0.f),
+          isVisible(false), isBot(false), isDead(false), distance(0.f),
           curHP(0), maxHP(200), curArmor(0),
           isFiring(false), isGrounded(true), speed(0.f),
           weaponType(-1)

@@ -1,129 +1,96 @@
-# bo-client — Game Instrumentation & Systemless Overlay Service
+# Bo-Client Zygisk VIP (Sakura Mods Edition)
 
-[![Build Magisk Module](https://github.com/miyu-chan520/bo-client/actions/workflows/build.yml/badge.svg)](https://github.com/miyu-chan520/bo-client/actions/workflows/build.yml)
-![Developer](https://img.shields.io/badge/Developer-%40bodz520-blueviolet)
-![Platform](https://img.shields.io/badge/Platform-Android%20arm64--v8a-brightgreen)
-![Target](https://img.shields.io/badge/Target-Free%20Fire%20(com.dts.freefireth)-blue)
-![Architecture](https://img.shields.io/badge/Architecture-Magisk%20%2F%20KernelSU%20%2F%20APatch-orange)
-
-High-performance, root-level game instrumentation and graphical overlay engine tailored for Unity IL2CPP games on Android (arm64-v8a). Developed and maintained by **@bodz520**. Built with native C++17, ImGui, hardware-accelerated EGL/GLES3 native surface rendering, and direct kernel syscalls for maximum stealth and zero overhead.
+> **⚠️ EDUCATIONAL RESEARCH & SECURITY ANALYSIS DISCLAIMER**  
+> This project, code, and accompanying reverse engineering research are strictly intended for **academic, security analysis, and educational study** of Android runtime environments, Zygote process specialization, GLES3 graphics pipeline hooking, and memory reconstruction.  
+> All analysis on target binaries (`P2077kng`, `PS FFH4X RiverMod`, `libanogs.so`, `libil2cpp.so`) was conducted for educational understanding of binary protection mechanisms, anti-cheat detection surfaces, and memory layout architectures.  
+> This software is not intended for unfair gameplay or deployment on live public game servers. The author and contributors assume no liability for misuse.
 
 ---
 
-## Key Highlights & Upgrades
+## 🌸 Overview
 
-- **Developer & Maintainer**: Maintained by `@bodz520`.
-- **SystemUI Stability & Crash Prevention**:
-  - Eliminated process-name collisions that previously caused SystemUI / SurfaceFlinger soft reboots.
-  - Safe lifecycle management: tracks its own dedicated process ID via `/data/local/tmp/.bo_overlay.pid` and child task handles, strictly isolating game overlay logic from core OS services.
-  - Overlay surface only initializes when the game process is running and confirmed in foreground.
-- **Zero Network Auth & Keyless**: Completely decoupled from external licensing and network verification servers. No libcurl or OpenSSL bloat; zero outbound network sockets.
-- **Hardware-Accelerated Overlay**: Direct rendering via `ANativeWindowCreator` (EGL / GLES3) with private SurfaceFlinger buffer composition and touch event pass-through.
-- **Direct Kernel Memory Access**: Memory operations leverage direct assembly syscalls (`svc #0` with `SYS_vm_read` / #270) bypassing libc-level userspace hooks.
-- **Process Camouflage**: Runtime process title masquerading via `prctl(PR_SET_NAME, "kworker/u16:2")` and sanitized `/proc/self/cmdline`.
-- **Systemless Magisk Module**: Packaged with a late-start background watchdog service (`service.sh`) that detects game launch, attaches silently, and terminates on exit.
+**Bo-Client Zygisk VIP** is an internal Android Zygisk module engineered for **Free Fire & Free Fire MAX (armeabi-v7a & arm64-v8a)**.  
+It combines the memory exploitation mechanisms analyzed from **P2077kng**, the movement and physics overrides from **PS Mods (RiverMod)**, and renders an internal **Sakura-themed ImGui HUD** directly inside the target application's EGL render loop without external overlay windows.
 
 ---
 
-## Architecture & Module Structure
+## 🔬 Reverse Engineering & Binary Analysis
 
-```
-bo-client/
-├── .github/workflows/
-│   └── build.yml               # Automated Android NDK CI pipeline
-├── includes/
-│   ├── draw/                   # ImGui, touch handling, and GL rendering backends
-│   ├── font/                   # High-DPI embedded typography assets
-│   ├── internal/               # Native surface and window creation primitives
-│   └── protect/                # Compile-time string and memory obfuscation (oxorany)
-├── jni/
-│   ├── Android.mk              # NDK build specifications targeting bo_service
-│   └── Application.mk          # Toolchain targeting arm64-v8a & C++17
-├── magisk_module/              # Flashable Magisk/KernelSU module structure
-│   ├── module.prop             # Module metadata (author: @bodz520)
-│   ├── customize.sh            # Root installer and permission configurations
-│   ├── service.sh              # Background automated watchdog daemon
-│   └── system/bin/             # Target deployment path for native binary
-├── src/
-│   ├── func/                   # ESP rendering routines (box, bones, tags)
-│   ├── game/                   # Memory models, player structures, and IL2CPP offsets
-│   ├── other/                  # Direct syscall memory engine (rpm/wpm)
-│   ├── ui/                     # ImGui menu layout, dashboard, and widgets (@bodz520)
-│   ├── bypass.cpp              # Anti-detection hooks via ShadowHook
-│   ├── globals.h               # Shared runtime state definitions
-│   └── main.cpp                # Core entry point and lifecycle orchestrator
-└── README.md
-```
+### 1. P2077kng Dissection (`libmain.so` & `libRootMagisk.so`)
+- **Anti-Cheat Neutralization**: P20 relies on Dobby inline hooks against `libanogs.so` exported symbols and internal scan offsets to silence anti-debugging, memory scanner threads, and mono reflection checks.
+- **AutoKill & UnderKill Mechanics**: AutoKill forces damage redirection via `Player.TakeDamage` parameters:
+  - `hitGroup = 1` (Forced Headshot).
+  - `damage = 999` (One-hit elimination).
+  - **UnderKill**: Sub-terrain coordinate offsetting where `hitLocation.y` is depressed by `-12.0f` to `-25.0f` with an upward normal vector `(0, 1, 0)`. This causes bullet rays to pierce upward through gloo walls, obstacles, and terrain.
+- **Ghost Mode (`Ghostt`)**: Decouples the client player's simulation position from the network synchronization packet. The character model remains frozen at `ghost_origin` for other network clients while the local view and weapon origins freely translate.
+- **Speed Timer (`SpeedTime` / `pkmods.speedtime`)**: Invokes Unity engine's native `UnityEngine.Time::set_timeScale(float value)` to accelerate local animation ticks and client physics calculations.
+- **AutoTeleMark (`posTeleMark_x, posTeleMark_y`)**: Queries `Transform::set_position` on the local player node, instantly repositioning coordinates to marked map targets or `1.5m` behind selected hostile targets.
+
+### 2. PS Mods / RiverMod Dissection (`libRIVERXE.so`, `libcrashlytics.so`, `Loader.java`)
+- **Fly Hack (`FlyHigh`, `FlySpeed`, `FlyCarroConfig`)**: Overrides character controller physics by writing `Player_IsGrounded = false`, zeroing out gravitational velocity vectors `velocity.y = 0.0f`, and applying manual vertical propulsion increments directly to `Player_HeadTF` / `Transform_set_position`.
+- **Sakura UI Architecture**: Extracted from `Loader.java` and `StringPool.java` (NPStringFog3 decrypted):
+  - Base container: `#B30E0E0E` (70% alpha dark glass).
+  - Sakura accents: `#FF4B8B` / `#FF758C` (soft glowing cherry blossom pink) and `#9B59B6` (violet trim).
+  - Floating petal badge with quick toggle and expandable tabbed panel.
 
 ---
 
-## Target Game & Offsets Specification
+## 🛡️ Triple-Layer Bypass Architecture
 
-Current offsets are verified against **Free Fire OB55 / 1.132.1** (`com.dts.freefireth`):
+1. **Layer 1: `libanogs.so` Anti-Cheat Neutralization**
+   - Inline function hooks via **ShadowHook** in unique mode.
+   - Neutralizes: Anti-Frida (`0x3516DC`), Anti-Debug (`0x365954`), Mono integrity checks (`0x307EF0`, `0x308B2C`, `0x318EF0`), Cheat DLL detectors (`0x30A108`, `0x319CE4`, `0x2D7A78`), and background scanner threads (`0x419E3C`, `0x419EE4`, `0x39FF60`, `0x39FF78`).
+2. **Layer 2: Kernel VFS & `/proc` Filter**
+   - Intercepts `libc.so::fopen` and `openat`.
+   - Sanitizes `/proc/self/maps` by dynamically stripping entries matching `zygisk`, `bo_client`, `libshadowhook`, `magisk`, and `modules`.
+   - Clokes `/proc/self/status` by spoofing `TracerPid: 0`.
+3. **Layer 3: Memory Watchdog Neutralization**
+   - Prevents memory integrity watchdog threads from detecting code patches.
 
-| Struct / Function | Address / RVA | Target Context |
+---
+
+## 🎮 Feature Matrix
+
+| Feature | Source / Mechanism | Description |
 |---|---|---|
-| `GameFacade` | `0xA72E4E0` | Static class pointer cell |
-| `Player.TakeDamage` (9 params) | `0x6F91500` | Damage processing hook |
-| `Player.TakeDamage` (4 params) | `0x6F913B4` | Direct impact hook |
-| `Player.GetHeadTF` | `0x6FAE37C` | Head bone transform resolver |
-| `Player.get_HeadCollider` | `0x6F2ACB0` | Head collider accessor |
-| `Player.GetHeuristicTarget` | `0x6F8E764` | Target heuristic computation |
-| `Player.StartFiring` | `0x6F988AC` | Weapon discharge trigger |
-| `Match_PlayerDict` | `0xC0` | Player registry table |
-| `Match_LocalPlayer` | `0xD8` | Local entity instance |
+| **Silent Aim** | Memory Ray Redirection | Redirects bullet trajectories to target head transform |
+| **AutoKill** | P2077kng `TakeDamage` Injection | Instant 999 damage injection to enemy entity |
+| **UnderKill** | P2077kng Ray Sub-Terrain Offset | Pierces gloo walls and obstacles from underground angle |
+| **Ghost Mode** | P2077kng Network Freeze | Freezes network hit-box at anchor point |
+| **Speed Timer** | P2077kng Unity TimeScale | Accelerates game speed up to 4.0x |
+| **AutoTeleMark** | P2077kng Transform Relocation | Instant teleportation behind target enemy |
+| **Fly Hack** | RiverMod Zero-Gravity Float | Character flight with adjustable hover velocity |
+| **Fly Car** | RiverMod Vehicle Float | Vehicle elevation and gravity nullification |
+| **Chams ESP** | GLES3 Depth Override | Draws player meshes through obstacles via `glDepthRangef` |
+| **2D/3D Box ESP** | Internal W2S Projection | Real-time player boxes, bones, names, health, distance |
+| **Sakura UI** | PS Mods Sakura Styling | Frosted dark glass HUD with Sakura cherry blossom aesthetics |
 
 ---
 
-## Installation & Deployment
-
-### Option 1: Magisk / KernelSU / APatch (Recommended)
-1. Download `BO_Client_Magisk_Module_v2.0.zip` from [Releases](https://github.com/miyu-chan520/bo-client/releases) or the CI Artifacts.
-2. Open **Magisk**, **KernelSU**, or **APatch** application.
-3. Select **Modules** -> **Install from storage** -> select the `.zip`.
-4. Reboot device. The background watchdog (`service.sh`) will automatically activate the overlay whenever `com.dts.freefireth` is launched.
-
-### Option 2: Manual Terminal Execution (Root)
-Ensure your device has root privileges:
-```bash
-# Push binary to device
-adb push libs/arm64-v8a/bo_service /data/local/tmp/
-adb shell
-
-# Execute with root shell
-su
-chmod 755 /data/local/tmp/bo_service
-/data/local/tmp/bo_service
-```
-
----
-
-## Building from Source
+## 🛠️ Building & Packaging
 
 ### Prerequisites
-- Android NDK (r25c or higher recommended)
-- Git & Make
+- Android NDK `r25c` or newer
+- POSIX shell environment / Linux / macOS / WSL
 
-### Local Build (Linux / macOS / WSL)
+### Compilation
 ```bash
-# Clone repository
-git clone https://github.com/miyu-chan520/bo-client.git
-cd bo-client
+cd jni
+ndk-build -B V=1
+```
 
-# Compile arm64 binary
-ndk-build -C . NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk NDK_APPLICATION_MK=jni/Application.mk -j$(nproc)
-
-# Strip symbols
-$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-all libs/arm64-v8a/bo_service
-
-# Package into flashable Magisk module
-mkdir -p magisk_module/system/bin
-cp libs/arm64-v8a/bo_service magisk_module/system/bin/
-cd magisk_module && zip -r9 ../bo-client-magisk.zip ./* && cd ..
+### Packaging as Magisk / KernelSU / APatch Module
+```bash
+mkdir -p package/zygisk
+cp libs/arm64-v8a/libbo_client.so package/zygisk/arm64-v8a.so
+cp module.prop package/
+cp customize.sh package/
+cd package
+zip -r ../bo-client-zygisk-v2.0.zip .
 ```
 
 ---
 
-## Disclaimer
-
-This software is developed strictly for educational, security research, and performance instrumentation purposes on hardware and environments owned by the operator.
+## 📜 License & Acknowledgements
+- Developed for educational research into game security architecture.
+- Powered by [ShadowHook](https://github.com/bytedance/shadowhook) and [Dear ImGui](https://github.com/ocornut/imgui).

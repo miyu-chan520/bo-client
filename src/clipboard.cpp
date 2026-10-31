@@ -27,7 +27,7 @@ static std::string tryServiceCall() {
 
     if (raw.empty()) return "";
 
-    // Extract all text enclosed within quotes '...'
+    // Ambil semua text di dalam tanda kutip '...'
     std::string result;
     size_t pos = 0;
     while (true) {

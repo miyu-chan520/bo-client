@@ -2,6 +2,6 @@
 #pragma once
 #include <string>
 
-// Read Android clipboard contents via `service call clipboard` (requires root)
-// Returns empty string if clipboard is empty or command fails
+// Baca clipboard Android via `service call clipboard` (butuh root)
+// Return "" kalau clipboard kosong / error
 std::string getClipboard();

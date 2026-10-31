@@ -1,7 +1,6 @@
 #include "data.hpp"
 #include "Offsets.h"
-#include "DynamicOffsets.hpp"
-#include "aimbot.hpp"
+#include "scanner.hpp"
 #include "../other/utils.hpp"
 #include "../other/memory.hpp"
 #include "../ui/cfg.hpp"
@@ -79,7 +78,6 @@ namespace data {
     // BONE → SCREEN
     // ========================================================================
     static Vector3 boneScreen(uint64_t player, uintptr_t offset) {
-        if (!offset) return Vector3::Zero();
         uint64_t node = rpm<uint64_t>(player + offset);
         if (!node) return Vector3::Zero();
         Vector3 w = GetNodePosition(node);
@@ -142,70 +140,29 @@ namespace data {
     // UPDATE
     // ========================================================================
     void update() {
-        if (proc::pid <= 0 || proc::lib == 0) return;
+        if (proc::lib == 0) proc::lib = scanner::g_Offsets.il2cpp_base;
+        if (proc::pid <= 0) proc::pid = getpid();
+        if (proc::lib == 0) return;
 
         std::vector<PlayerData> tmp;
         tmp.reserve(64);
 
-        // 100% Non-Intrusive Dynamic RAM Resolution (Zero Crash / Pure RPM)
-        static auto s_lastScanTime = std::chrono::steady_clock::time_point::min();
-        auto now = std::chrono::steady_clock::now();
-
-        if (DynamicOffsets::g_gameFacadeClass == 0 && Offsets::GameFacade == 0) {
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_lastScanTime).count();
-            if (elapsed > 1500) {
-                s_lastScanTime = now;
-                uint64_t gfCls = DynamicOffsets::FindGameFacadeClassInRam(proc::pid, proc::lib);
-                if (gfCls) {
-                    DynamicOffsets::ResolveGameFacadeFields(gfCls);
-                }
-            }
-        }
-        if (DynamicOffsets::g_gameFacadeClass == 0 && Offsets::GameFacade == 0) return;
-
-        uint64_t GfClass = DynamicOffsets::g_gameFacadeClass;
-        if (!GfClass || GfClass < 0x100000000) {
-            uint64_t GfCell = rpm<uint64_t>(proc::lib + Offsets::GameFacade);
-            if (GfCell >= 0x100000000) {
-                char cName[64] = {0}, cNs[64] = {0};
-                if (DynamicOffsets::GetClassInfo(GfCell, cName, cNs) && strcmp(cName, "GameFacade") == 0) {
-                    GfClass = GfCell;
-                } else {
-                    uint64_t deref = rpm<uint64_t>(GfCell);
-                    if (DynamicOffsets::GetClassInfo(deref, cName, cNs) && strcmp(cName, "GameFacade") == 0) {
-                        GfClass = deref;
-                    }
-                }
-            }
-            if (GfClass) DynamicOffsets::g_gameFacadeClass = GfClass;
-        }
+        // Base chain
+        auto GfCell = rpm<uint64_t>(proc::lib + oxorany(Offsets::GameFacade));
+        if (!GfCell) return;
+        auto GfClass = rpm<uint64_t>(GfCell);
         if (!GfClass) return;
 
         auto StaticFields = rpm<uint64_t>(GfClass + Offsets::GameFacade_P2);
-        if (!StaticFields || StaticFields < 0x100000000) return;
+        if (!StaticFields) return;
 
-        auto BaseGame = rpm<uint64_t>(StaticFields + Offsets::BaseGame_CurrentMatchGame);
-        if (!BaseGame || BaseGame < 0x100000000) {
-            BaseGame = rpm<uint64_t>(StaticFields + Offsets::BaseGame_CurrentGame);
-        }
-        if (!BaseGame || BaseGame < 0x100000000) {
-            inMatch.store(false);
-            localPlayerAddr.store(0);
-            std::lock_guard<std::mutex> lk(players_mutex);
-            players.clear();
-            return;
-        }
+        auto BaseGame = rpm<uint64_t>(StaticFields + 0x8);
+        if (!BaseGame) return;
 
-        // Dynamically resolve MatchGame & Match classes from live BaseGame RAM object
-        static uint64_t s_lastBaseGame = 0;
-        if (BaseGame != s_lastBaseGame) {
-            DynamicOffsets::ResolveMatchChain(BaseGame);
-            s_lastBaseGame = BaseGame;
-        }
+        bool matchActive = rpm<bool>(BaseGame + Offsets::MatchIsRunning);
+        inMatch.store(matchActive);
 
-        auto m_Match = rpm<uint64_t>(BaseGame + Offsets::BaseGame_Match);
-        if (!m_Match || m_Match < 0x100000000) {
-            inMatch.store(false);
+        if (!matchActive) {
             localPlayerAddr.store(0);
             {
                 std::lock_guard<std::mutex> lk(players_mutex);
@@ -218,32 +175,15 @@ namespace data {
             return;
         }
 
+        auto m_Match = rpm<uint64_t>(BaseGame + Offsets::BaseGame_Match);
+        if (!m_Match) return;
+
         auto localPlayer = rpm<uint64_t>(m_Match + Offsets::Match_LocalPlayer);
-        if (!localPlayer || localPlayer < 0x100000000) {
-            // Secondary dynamic search for local player
-            localPlayer = rpm<uint64_t>(m_Match + 0xE0);
-        }
 
-        if (!localPlayer || localPlayer < 0x100000000) {
-            inMatch.store(false);
-            localPlayerAddr.store(0);
-            {
-                std::lock_guard<std::mutex> lk(players_mutex);
-                players.clear();
-            }
-            return;
-        }
+        // Simpan local player
+        localPlayerAddr.store(localPlayer ? localPlayer : 0);
 
-        // Dynamically resolve Player class fields and bones from live LocalPlayer RAM object
-        static uint64_t s_lastLocalPlayer = 0;
-        if (localPlayer != s_lastLocalPlayer) {
-            DynamicOffsets::ResolvePlayerClassFields(localPlayer);
-            s_lastLocalPlayer = localPlayer;
-        }
-
-        // Valid local player confirmed -> actively in match
-        inMatch.store(true);
-        localPlayerAddr.store(localPlayer);
+        if (!localPlayer) return;
 
         // ── Camera chain ──
         uint64_t Follow = 0, Cam = 0, IntPtr = 0;
@@ -253,7 +193,7 @@ namespace data {
         if (Cam)    IntPtr = rpm<uint64_t>(Cam + Offsets::Camera_IntPtr);
 
         if (!IntPtr) {
-            // Alternative fallback camera offset
+            // Fallback offset alternatif
             Follow = rpm<uint64_t>(localPlayer + 0x690);
             if (Follow) Cam = rpm<uint64_t>(Follow + 0x30);
             if (Cam)    IntPtr = rpm<uint64_t>(Cam + 0x10);
@@ -263,40 +203,10 @@ namespace data {
 
         viewMatrix = rpm<matrix>(IntPtr + Offsets::Camera_Matrix);
 
-        // ── Local & Camera position ──
+        // ── Local position ──
         Vector3 localPos = Vector3::Zero();
         uint64_t headNode = rpm<uint64_t>(localPlayer + Offsets::Bone_Head);
         if (headNode) localPos = GetNodePosition(headNode);
-
-        // Resolve true 3D camera world position:
-        // 1. Try Player.MainCameraTransform (0x3E8)
-        // 2. Try FollowCamera.Transform (0x40)
-        // 3. Fallback: localPos + over-the-shoulder 3rd-person offsets
-        Vector3 cameraPos = Vector3::Zero();
-        uint64_t camTF = rpm<uint64_t>(localPlayer + Offsets::Player_MainCameraTransform);
-        if (!camTF && Follow) {
-            camTF = rpm<uint64_t>(Follow + Offsets::Camera_Transform);
-        }
-        if (camTF) {
-            cameraPos = GetPosition(camTF);
-        }
-
-        if (cameraPos == Vector3::Zero() && Follow) {
-            float rOff = rpm<float>(Follow + Offsets::Camera_RightOffset);
-            float uOff = rpm<float>(Follow + Offsets::Camera_UpOffset);
-            float bOff = rpm<float>(Follow + Offsets::Camera_BackOffset);
-            Quaternion camRot = rpm<Quaternion>(Follow + Offsets::Camera_Rotation);
-            if (camRot.sqrMagnitude() > 0.001f) {
-                Vector3 fwd = camRot * Vector3::Forward();
-                Vector3 rgt = camRot * Vector3::Right();
-                Vector3 up  = camRot * Vector3::Up();
-                float rightDist = (rOff > 0.1f && rOff < 2.0f) ? rOff : 0.55f;
-                float upDist    = (uOff > 0.05f && uOff < 2.0f) ? uOff : 0.20f;
-                float backDist  = (bOff > 0.1f && bOff < 5.0f) ? bOff : 1.80f;
-                cameraPos = localPos - (fwd * backDist) + (rgt * rightDist) + (up * upDist);
-            }
-        }
-        if (cameraPos == Vector3::Zero()) cameraPos = localPos;
 
         // ── LOOT ──
         if (cfg::esp::loot) {
@@ -307,27 +217,10 @@ namespace data {
         }
 
         // ── PLAYERS ──
-        uint64_t dictAddr = 0;
-        if (Offsets::Match_PlayerDict >= 0x20) {
-            dictAddr = rpm<uint64_t>(BaseGame + Offsets::Match_PlayerDict);
-        }
-        if (!dictAddr) {
-            dictAddr = rpm<uint64_t>(BaseGame + 0xC0);
-        }
-        if (!dictAddr && m_Match) {
-            dictAddr = rpm<uint64_t>(m_Match + 0x148);
-        }
+        uint64_t dictAddr = rpm<uint64_t>(BaseGame + Offsets::Match_PlayerDict);
         if (!dictAddr) return;
 
-        int32_t localTeam = rpm<int32_t>(localPlayer + Offsets::Player_TeamIndex);
-
         MonoDictionary dict(dictAddr);
-        if (!dict.valid && m_Match) {
-            uint64_t altDict = rpm<uint64_t>(m_Match + 0x148);
-            if (altDict) {
-                dict = MonoDictionary(altDict);
-            }
-        }
         if (!dict.valid) return;
 
         int nv = dict.getNumValues();
@@ -335,62 +228,61 @@ namespace data {
             uint64_t enemy = dict.entry(i);
             if (!enemy || enemy < 0x100000000 || enemy == localPlayer) continue;
 
-            // Filter: Only include players with HP > 0 and not dead
-            bool isDead = false;
-            if (Offsets::Player_IsDead >= 0x20) {
-                isDead = rpm<bool>(enemy + Offsets::Player_IsDead);
-            }
-            if (isDead) continue;
-
-            int hp = readHP(enemy);
-            if (hp <= 0) continue; // Only players with > 0 HP
-
-            bool isKnocked = false;
-            if (Offsets::Player_IsKnocked >= 0x20) {
-                isKnocked = rpm<bool>(enemy + Offsets::Player_IsKnocked);
-            }
-
-            // Teammate Filter (Only filter if both have valid, positive matching teams)
-            int32_t enemyTeam = rpm<int32_t>(enemy + Offsets::Player_TeamIndex);
-            if (localTeam > 0 && enemyTeam > 0 && localTeam == enemyTeam) continue;
-
+            if (rpm<bool>(enemy + Offsets::Player_IsDead)) continue;
             bool isBot = rpm<bool>(enemy + Offsets::Player_IsBot);
 
-            // Non-blocking Avatar & Visibility resolution
-            bool visible = true;
-            if (Offsets::Player_Avatar >= 0x20) {
-                auto avatarMgr = rpm<uint64_t>(enemy + Offsets::Player_Avatar);
-                if (avatarMgr && Offsets::Avatar_Uma >= 0x20) {
-                    auto uma = rpm<uint64_t>(avatarMgr + Offsets::Avatar_Uma);
-                    if (uma) {
-                        visible = rpm<bool>(uma + Offsets::Uma_Visible);
+            int hp = readHP(enemy);
+            if (hp <= 0) continue;
+
+            auto avatarMgr = rpm<uint64_t>(enemy + Offsets::Player_Avatar);
+            if (!avatarMgr) continue;
+            auto uma = rpm<uint64_t>(avatarMgr + Offsets::Avatar_Uma);
+            if (!uma) continue;
+
+            bool rawVisible = rpm<bool>(uma + Offsets::Uma_Visible);
+
+            // Debounce visible
+            bool visible;
+            {
+                auto it = g_visStable.find(enemy);
+                if (it == g_visStable.end()) {
+                    g_visStable[enemy] = rawVisible;
+                    g_visCounter[enemy] = 0;
+                    visible = rawVisible;
+                } else if (it->second == rawVisible) {
+                    g_visCounter[enemy] = 0;
+                    visible = rawVisible;
+                } else {
+                    g_visCounter[enemy]++;
+                    if (g_visCounter[enemy] >= 2) {
+                        g_visStable[enemy] = rawVisible;
+                        g_visCounter[enemy] = 0;
+                        visible = rawVisible;
+                    } else {
+                        visible = it->second;
                     }
                 }
             }
 
-            // Head world position (with fallback to Root + 1.6m if Head is unavailable)
-            uintptr_t headOff = Offsets::Bone_Head ? Offsets::Bone_Head : 0x6A0;
-            uint64_t hNode = rpm<uint64_t>(enemy + headOff);
-            Vector3 headWorld = hNode ? GetNodePosition(hNode) : Vector3::Zero();
+            // Team
+            auto umaData = rpm<uint64_t>(uma + Offsets::Uma_Data);
+            if (umaData && rpm<bool>(umaData + Offsets::UmaData_Skip)) continue;
 
-            if (headWorld == Vector3::Zero()) {
-                uintptr_t rootOff = Offsets::Bone_Root ? Offsets::Bone_Root : 0x6C8;
-                uint64_t rNode = rpm<uint64_t>(enemy + rootOff);
-                if (rNode) {
-                    Vector3 rootWorld = GetNodePosition(rNode);
-                    if (rootWorld != Vector3::Zero()) {
-                        headWorld = rootWorld + Vector3(0.0f, 1.6f, 0.0f);
-                    }
-                }
-            }
+            // Head world
+            uint64_t hNode = rpm<uint64_t>(enemy + Offsets::Bone_Head);
+            if (!hNode) continue;
+            Vector3 headWorld = GetNodePosition(hNode);
             if (headWorld == Vector3::Zero()) continue;
 
             float dist = calculate_distance(localPos, headWorld);
             if (dist > cfg::esp::max_range) continue;
+            if (!visible && dist < 200.f) continue;
 
             Vector3 headScreen = WorldToScreenPoint(viewMatrix, headWorld);
-            uintptr_t toeOff = Offsets::Bone_LeftToe ? Offsets::Bone_LeftToe : 0x6E8;
-            Vector3 toeScreen  = boneScreen(enemy, toeOff);
+            if (headScreen.x < 0) continue;
+
+            Vector3 toeScreen = boneScreen(enemy, Offsets::Bone_LeftToe);
+            if (toeScreen.x < 0 || toeScreen.y < 0) continue;
 
             // Build
             PlayerData pd;
@@ -399,14 +291,12 @@ namespace data {
             if (!pd.name[0] && isBot) snprintf(pd.name, sizeof(pd.name), "BOT");
 
             pd.addr       = enemy;
-            pd.team       = enemyTeam;
-            pd.isTeammate = false;
             pd.Head       = headScreen;
             pd.Toe        = toeScreen;
+            pd.headPos    = headWorld;
             pd.isVisible  = visible;
-            pd.isKnocked  = isKnocked;
-            pd.isDead     = isDead;
             pd.isBot      = isBot;
+            pd.isDead     = (hp <= 0);
             pd.distance   = dist;
             pd.curHP      = hp;
             pd.maxHP      = 200;
@@ -417,20 +307,20 @@ namespace data {
             Vector3 vel = rpm<Vector3>(enemy + Offsets::Player_Velocity);
             pd.speed = sqrtf(vel.x*vel.x + vel.y*vel.y + vel.z*vel.z);
 
-            // 14 Bones mapped to screen
-            pd.Hip       = boneScreen(enemy, Offsets::Bone_Hip ? Offsets::Bone_Hip : 0x6A8);
-            pd.Breast    = boneScreen(enemy, Offsets::Bone_Breast ? Offsets::Bone_Breast : 0x6B0);
-            pd.Root      = boneScreen(enemy, Offsets::Bone_Root ? Offsets::Bone_Root : 0x6C8);
-            pd.LShoulder = boneScreen(enemy, Offsets::Bone_LeftShoulder ? Offsets::Bone_LeftShoulder : 0x708);
-            pd.RShoulder = boneScreen(enemy, Offsets::Bone_RightShoulder ? Offsets::Bone_RightShoulder : 0x710);
-            pd.LAnkle    = boneScreen(enemy, Offsets::Bone_LeftAnkle ? Offsets::Bone_LeftAnkle : 0x6D8);
-            pd.RAnkle    = boneScreen(enemy, Offsets::Bone_RightAnkle ? Offsets::Bone_RightAnkle : 0x6E0);
+            // Bones
+            pd.Hip       = boneScreen(enemy, Offsets::Bone_Hip);
+            pd.Breast    = boneScreen(enemy, Offsets::Bone_Breast);
+            pd.Root      = boneScreen(enemy, Offsets::Bone_Root);
+            pd.LShoulder = boneScreen(enemy, Offsets::Bone_LeftShoulder);
+            pd.RShoulder = boneScreen(enemy, Offsets::Bone_RightShoulder);
+            pd.LAnkle    = boneScreen(enemy, Offsets::Bone_LeftAnkle);
+            pd.RAnkle    = boneScreen(enemy, Offsets::Bone_RightAnkle);
             pd.LToe      = toeScreen;
-            pd.RToe      = boneScreen(enemy, Offsets::Bone_RightToe ? Offsets::Bone_RightToe : 0x6F0);
-            pd.LForeArm  = boneScreen(enemy, Offsets::Bone_LeftForeArm ? Offsets::Bone_LeftForeArm : 0x730);
-            pd.RForeArm  = boneScreen(enemy, Offsets::Bone_RightForeArm ? Offsets::Bone_RightForeArm : 0x728);
-            pd.LHand     = boneScreen(enemy, Offsets::Bone_LeftHand ? Offsets::Bone_LeftHand : 0x720);
-            pd.RHand     = boneScreen(enemy, Offsets::Bone_RightHand ? Offsets::Bone_RightHand : 0x718);
+            pd.RToe      = boneScreen(enemy, Offsets::Bone_RightToe);
+            pd.LForeArm  = boneScreen(enemy, Offsets::Bone_LeftForeArm);
+            pd.RForeArm  = boneScreen(enemy, Offsets::Bone_RightForeArm);
+            pd.LHand     = boneScreen(enemy, Offsets::Bone_LeftHand);
+            pd.RHand     = boneScreen(enemy, Offsets::Bone_RightHand);
 
             tmp.push_back(pd);
         }
@@ -444,9 +334,6 @@ namespace data {
             std::lock_guard<std::mutex> lk(players_mutex);
             players.swap(tmp);
         }
-
-        // Aimbot Engine Tick
-        aimbot::Update(localPlayer, localPos, cameraPos);
     }
 
     // ========================================================================

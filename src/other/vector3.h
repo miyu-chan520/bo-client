@@ -377,7 +377,7 @@ struct Quaternion {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // Slerp interpolation implementation
+    // Slerp — ditambahkan (tidak ada di versi asli MIT Eric Phillips)
     // Interpolasi spherical antara a → b dengan parameter t ∈ [0, 1].
     // ═══════════════════════════════════════════════════════════════════════
     static inline Quaternion Slerp(const Quaternion& a, const Quaternion& b, float t) {
@@ -418,11 +418,4 @@ struct Quaternion {
 
     inline Vector3 euler() const { return ToEuler(*this); }
     inline Quaternion normalized() const { return Normalize(*this); }
-    inline float sqrMagnitude() const { return x * x + y * y + z * z + w * w; }
-
-    inline Vector3 operator*(const Vector3& v) const {
-        Vector3 qv(x, y, z);
-        Vector3 t = Vector3::Cross(qv, v) * 2.0f;
-        return v + (t * w) + Vector3::Cross(qv, t);
-    }
 };

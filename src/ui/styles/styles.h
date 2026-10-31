@@ -21,6 +21,15 @@ namespace UITheme {
     inline ImVec4 accent_light = ImVec4(220/255.f, 40/255.f, 40/255.f, 1.f);
     inline ImVec4 accent_dark  = ImVec4(120/255.f, 20/255.f, 20/255.f, 1.f);
 
+    // SAKURA THEME (From PS RiverMod Sakura UI: #B30E0E0E & #FF4B8B / #FF758C)
+    inline ImVec4 sakura_bg        = ImVec4(14/255.f, 14/255.f, 18/255.f, 0.92f);
+    inline ImVec4 sakura_panel     = ImVec4(24/255.f, 20/255.f, 28/255.f, 0.90f);
+    inline ImVec4 sakura_widget    = ImVec4(34/255.f, 28/255.f, 40/255.f, 0.95f);
+    inline ImVec4 sakura_accent    = ImVec4(255/255.f, 75/255.f, 139/255.f, 1.f);   // #FF4B8B
+    inline ImVec4 sakura_light     = ImVec4(255/255.f, 117/255.f, 140/255.f, 1.f);  // #FF758C
+    inline ImVec4 sakura_dark      = ImVec4(180/255.f, 40/255.f, 95/255.f, 1.f);
+    inline ImVec4 sakura_purple    = ImVec4(155/255.f, 89/255.f, 182/255.f, 1.f);
+
     // TEXT
     inline ImVec4 text         = ImVec4(230/255.f, 230/255.f, 235/255.f, 1.f);
     inline ImVec4 text_light   = ImVec4(230/255.f, 230/255.f, 235/255.f, 1.f);

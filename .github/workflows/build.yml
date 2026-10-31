@@ -1,4 +1,4 @@
-name: Build Magisk Module
+name: Build Bo-Client Zygisk Module
 
 on:
   push:
@@ -9,9 +9,8 @@ on:
 
 jobs:
   build:
+    name: Build Zygisk Module (arm64-v8a)
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout Repository
@@ -23,65 +22,23 @@ jobs:
           ndk-version: r25c
           add-to-path: true
 
-      - name: Build arm64-v8a Binary
+      - name: Compile Native Module with ndk-build
         run: |
-          chmod +x jni/Android.mk
-          set -o pipefail
-          ndk-build -C . NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk NDK_APPLICATION_MK=jni/Application.mk -j$(nproc) 2>&1 | tee build.log || {
-            ERR_MSG=$(tail -n 30 build.log | tr '\n' ' ' | sed 's/%/%25/g' | sed 's/\r//g')
-            echo "::error::$ERR_MSG"
-            exit 1
-          }
+          cd jni
+          ndk-build -B V=1
 
-      - name: Strip Debug Symbols
+      - name: Assemble Magisk / KernelSU / APatch Zygisk Zip
         run: |
-          STRIP_TOOL="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-          if [ -f "$STRIP_TOOL" ]; then
-            $STRIP_TOOL --strip-all libs/arm64-v8a/bo_service || true
-          fi
+          mkdir -p package/zygisk
+          cp libs/arm64-v8a/libbo_client.so package/zygisk/arm64-v8a.so
+          cp module.prop package/
+          cp customize.sh package/
+          cd package
+          zip -r ../bo-client-zygisk-v2.0.zip .
 
-      - name: Prepare Magisk Module Directory
-        run: |
-          mkdir -p magisk_module/system/bin
-          cp libs/arm64-v8a/bo_service magisk_module/system/bin/bo_service
-          cp libs/arm64-v8a/bo_service magisk_module/system/bin/surfaceflinger_helper
-          chmod 755 magisk_module/system/bin/bo_service
-          chmod 755 magisk_module/system/bin/surfaceflinger_helper
-          chmod 755 magisk_module/service.sh
-          chmod 755 magisk_module/customize.sh
-
-      - name: Create Flashable Magisk Zip
-        run: |
-          cd magisk_module
-          zip -r9 ../BO_Client_Magisk_Module_v2.2.zip ./*
-          cd ..
-          ls -lh BO_Client_Magisk_Module_v2.2.zip
-
-      - name: Upload Magisk Module Artifact
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BO_Client_Magisk_Module_v2.2
-          path: BO_Client_Magisk_Module_v2.2.zip
+          name: bo-client-zygisk-v2.0
+          path: bo-client-zygisk-v2.0.zip
           retention-days: 14
-
-      - name: Create or Update GitHub Release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v2.2
-          name: "BO Client Magisk Module v2.2 (Full Feature Pack)"
-          body: |
-            ### BO Client v2.2 (OB55 / 1.132.1 - Full Feature Release)
-            - **Free Fire MAX & TH Dual Target Engine**: Zero-configuration auto-detection.
-            - **Parallax-Compensated Aim Lock**: Eliminates right-shoulder angular error; centers crosshair on head with manual fine-trim.
-            - **Full Combat & Visual Suite**:
-              - Bullet Magnet / Super Aim Assist `[RISK]` (180-degree aim-assist lock)
-              - Big Head Hitbox Extender `[RISK]` (dynamically scales head hitboxes)
-              - Laser Spread / Zero Spread `[RISK]` (removes hip & ADS spread growth/clamps)
-              - Silent Aim / Magic Bullet `[RISK]` (bullet trajectory redirection)
-              - 360 Off-Screen Threat Radar & Enemy Counter HUD `[SAFE]`
-              - Head Dot Point & Multi-Anchor Tracers `[SAFE]`
-              - Wide FOV Scaler & Chams Glow Silhouette `[SAFE]`
-          files: BO_Client_Magisk_Module_v2.2.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

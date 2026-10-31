@@ -395,17 +395,19 @@ namespace android {
             }
 
             // ═══════════════════════════════════════════════════════
-            // Screen capture protection: secure flag & SetTrustedOverlay applied when hide = true
-            //      When hide = false: standard surface rendering without capture flags
+            // FIX: `secure` flag & `SetTrustedOverlay` hanya kalau `hide = true`
+            //      Kalau `hide = false` → screenshot NORMAL
             // ═══════════════════════════════════════════════════════
             SurfaceControl CreateSurface(const char *name, int32_t width, int32_t height, bool hide, bool secure) {
                 void *parentHandle = nullptr;
                 String8 windowName(name);
                 LayerMetadata layerMetadata;
 
-                // Flags: eSecure (0x80 and 0x40 across different AOSP versions)
+                // Flags default: 0 (transparan, tidak secure)
                 uint32_t flags = 0;
-                if (secure || hide) flags |= (0x80 | 0x40);
+
+                // Hanya set secure flag kalau memang diminta
+                if (secure) flags |= 0x80;
 
                 if (12 <= Functionals::GetInstance().systemVersion) {
                     static void *fakeParentHandleForBinder = nullptr;
@@ -416,7 +418,7 @@ namespace android {
 
                 if (Functionals::GetInstance().systemVersion <= 9) {
                     int value = -1;
-                    // Android 8-9: overlay concealment via system window type
+                    // Android 8-9: hide pakai windowType magic
                     if (hide) value = 441731;
 
                     result = reinterpret_cast<StrongPointer<void> (*)(void *, void *, uint32_t, uint32_t, int32_t,
@@ -427,7 +429,7 @@ namespace android {
                                                                                              value, -1);
                 } else {
                     // Android 10+
-                    // Secure surface flags applied when concealment (hide) is active
+                    // ⚠️ FIX: layerMetadata.setInt32 + flags 0x40 hanya kalau `hide = true`
                     if (hide) {
                         if (Functionals::GetInstance().systemVersion > 9 &&
                             Functionals::GetInstance().systemVersion < 12) {
@@ -442,14 +444,10 @@ namespace android {
                                                                                              layerMetadata, nullptr);
                 }
 
-                // Always set topmost Z-order layer (0x7FFFFFFF) so overlay renders above all apps and games
-                if (Functionals::GetInstance().SurfaceComposerClient__Transaction__SetLayer) {
-                    SurfaceComposerClientTransaction transaction;
-                    transaction.SetLayer(result, 0x7FFFFFFF);
-                    if (12 <= Functionals::GetInstance().systemVersion && hide &&
-                        Functionals::GetInstance().SurfaceComposerClient__Transaction__SetTrustedOverlay) {
-                        transaction.SetTrustedOverlay(result, true);
-                    }
+                // ⚠️ FIX: SetTrustedOverlay HANYA kalau `hide = true`
+                if (12 <= Functionals::GetInstance().systemVersion && hide) {
+                    static SurfaceComposerClientTransaction transaction;
+                    transaction.SetTrustedOverlay(result, true);
                     transaction.Apply(false, true);
                 }
 
@@ -573,11 +571,11 @@ namespace android {
 
         static void Destroy(ANativeWindow *nativeWindow) {
             auto it = m_cachedSurfaceControl.find(nativeWindow);
-            if (it == m_cachedSurfaceControl.end())
+            if (it != m_cachedSurfaceControl.end())
                 return;
 
-            it->second.DestroySurface(reinterpret_cast<detail::Surface *>(nativeWindow));
-            m_cachedSurfaceControl.erase(it);
+            m_cachedSurfaceControl[nativeWindow].DestroySurface(reinterpret_cast<detail::Surface *>(nativeWindow));
+            m_cachedSurfaceControl.erase(nativeWindow);
         }
 
     private:

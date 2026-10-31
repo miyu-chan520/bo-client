@@ -1,7 +1,7 @@
 LOCAL_PATH := $(call my-dir)
 
 # ============================================================
-# ShadowHook — Prebuilt Static Library
+# ShadowHook — static
 # ============================================================
 include $(CLEAR_VARS)
 LOCAL_MODULE := libshadowhook
@@ -12,45 +12,37 @@ LOCAL_MODULE_TAGS := optional
 include $(PREBUILT_STATIC_LIBRARY)
 
 # ============================================================
-# MAIN MODULE — bo_service
+# ZYGISK INTERNAL MODULE — libbo_client.so
 # ============================================================
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := bo_service
+LOCAL_MODULE := bo_client
 
-# Source files (all *.cpp under src/ and includes/draw/ except unused backends)
-LOCAL_SRC_FILES := $(filter-out \
-    ../includes/draw/ImGui/imgui_demo.cpp \
-    ../includes/draw/ImGui/backends/imgui_impl_vulkan.cpp \
-    ../includes/draw/ImGui/stb_image.cpp \
-    ../src/shadowhook/libshadowhook.a, \
-    $(patsubst $(LOCAL_PATH)/%,%,$(shell find $(LOCAL_PATH)/../src -name "*.cpp" 2>/dev/null || dir /s /b $(LOCAL_PATH)\..\src\*.cpp)) \
-    $(patsubst $(LOCAL_PATH)/%,%,$(shell find $(LOCAL_PATH)/../includes/draw -name "*.cpp" 2>/dev/null || dir /s /b $(LOCAL_PATH)\..\includes\draw\*.cpp)))
-
-# Fallback explicit source list if find fails
-ifeq ($(strip $(LOCAL_SRC_FILES)),)
+# Collect sources
 LOCAL_SRC_FILES := \
-    ../src/main.cpp \
-    ../src/bypass.cpp \
+    ../src/zygisk/zygisk_main.cpp \
+    ../src/game/scanner.cpp \
+    ../src/bypass/bypass.cpp \
+    ../src/game/features.cpp \
+    ../src/internal/egl_hook.cpp \
     ../src/globals.cpp \
+    ../src/bypass.cpp \
     ../src/clipboard.cpp \
     ../src/game/data.cpp \
     ../src/protect/oxorany.cpp \
     ../src/ui/bar.cpp \
     ../src/ui/menu.cpp \
-    ../src/ui/png/image.cpp \
     ../src/ui/widgets/widgets.cpp \
-    ../includes/draw/Android_draw/draw.cpp \
-    ../includes/draw/Android_touch/Touch.cpp \
+    ../src/ui/png/image.cpp \
+    ../src/Login/Jni_Stuff.cpp \
     ../includes/draw/ImGui/imgui.cpp \
     ../includes/draw/ImGui/imgui_draw.cpp \
     ../includes/draw/ImGui/imgui_tables.cpp \
     ../includes/draw/ImGui/imgui_widgets.cpp \
     ../includes/draw/ImGui/backends/imgui_impl_android.cpp \
     ../includes/draw/ImGui/backends/imgui_impl_opengl3.cpp
-endif
 
-# Include directories
+# Include Directories
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/../includes \
     $(LOCAL_PATH)/../includes/font \
@@ -64,6 +56,9 @@ LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/../includes/draw/ImGui/backends \
     $(LOCAL_PATH)/../includes/protect \
     $(LOCAL_PATH)/../src \
+    $(LOCAL_PATH)/../src/zygisk \
+    $(LOCAL_PATH)/../src/bypass \
+    $(LOCAL_PATH)/../src/internal \
     $(LOCAL_PATH)/../src/ui \
     $(LOCAL_PATH)/../src/ui/png \
     $(LOCAL_PATH)/../src/ui/png/images \
@@ -73,10 +68,12 @@ LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/../src/game \
     $(LOCAL_PATH)/../src/other \
     $(LOCAL_PATH)/../src/protect \
-    $(LOCAL_PATH)/../src/shadowhook
+    $(LOCAL_PATH)/../src/shadowhook \
+    $(LOCAL_PATH)/../src/Login
 
 # Compiler Flags
 LOCAL_CPPFLAGS := \
+    -DZYGISK_MODULE \
     -std=c++17 \
     -fexceptions \
     -frtti \
@@ -96,8 +93,6 @@ LOCAL_LDFLAGS := \
     -Wl,--gc-sections \
     -Wl,--strip-all \
     -Wl,--build-id=none \
-    -Wl,--no-undefined \
-    -pie \
     -Wl,-z,relro \
     -Wl,-z,now \
     -Wl,-z,noexecstack
@@ -115,4 +110,4 @@ LOCAL_LDLIBS := \
     -lz \
     -ldl
 
-include $(BUILD_EXECUTABLE)
+include $(BUILD_SHARED_LIBRARY)
