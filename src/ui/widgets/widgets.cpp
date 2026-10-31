@@ -1,3 +1,4 @@
+#include <string>
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "widgets.hpp"
 #include "Android_draw/draw.h"

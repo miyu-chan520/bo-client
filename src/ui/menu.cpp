@@ -8,6 +8,8 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <atomic>
+#include <mutex>
 #include <inttypes.h>
 #include <unordered_map>
 #include "../func/esp.hpp"

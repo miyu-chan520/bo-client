@@ -7,6 +7,8 @@
 #include <android/log.h>
 #include <thread>
 #include <chrono>
+#include <mutex>
+#include <atomic>
 #include <cmath>
 #include <GLES3/gl3.h>
 

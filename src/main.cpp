@@ -14,6 +14,8 @@
 #include <cstdlib>
 #include <thread>
 #include <chrono>
+#include <mutex>
+#include <atomic>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <android/log.h>

@@ -9,6 +9,8 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <string>
+#include <thread>
+#include <chrono>
 
 #define LOG_TAG "BoBypass"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
