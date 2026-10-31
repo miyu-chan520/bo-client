@@ -349,6 +349,15 @@ namespace DynamicOffsets {
         int32_t offColWrite = GetFieldOffsetByNames(playerClass, {"<AONPKGBGHHI>k__BackingField", "ColWrite", "m_Collider"});
         if (offColWrite >= 0) Offsets::Player_ColWrite = (uintptr_t)offColWrite;
 
+        int32_t offArmor = GetFieldOffsetByNames(playerClass, {"m_Armor", "Armor", "curArmor"});
+        if (offArmor >= 0) Offsets::Player_Armor = (uintptr_t)offArmor;
+
+        int32_t offVel = GetFieldOffsetByNames(playerClass, {"m_Velocity", "Velocity"});
+        if (offVel >= 0) Offsets::Player_Velocity = (uintptr_t)offVel;
+
+        int32_t offGround = GetFieldOffsetByNames(playerClass, {"m_IsGrounded", "IsGrounded"});
+        if (offGround >= 0) Offsets::Player_IsGrounded = (uintptr_t)offGround;
+
         Offsets::Head = Offsets::Bone_Head;
         Offsets::Hip  = Offsets::Bone_Hip;
         Offsets::Root = Offsets::Bone_Root;

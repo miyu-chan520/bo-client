@@ -5,7 +5,7 @@
 // ============================================================================
 // BO Client — Dynamic Runtime Offset Registry (100% RAM Scanned)
 // Target: Free Fire Standard (com.dts.freefireth)
-// All obsolete hardcoded offsets & dead bloat removed.
+// Clean, streamlined offset storage populated directly from live RAM.
 // ============================================================================
 namespace Offsets {
 
@@ -40,8 +40,11 @@ namespace Offsets {
     inline uintptr_t Player_LastAimTargetRef   = 0xE68;
     inline uintptr_t Player_CurrentAimRotation = 0;
     inline uintptr_t Player_HP                 = 0x70;
+    inline uintptr_t Player_Armor              = 0x74;
     inline uintptr_t Player_IsDead             = 0x7C;
     inline uintptr_t Player_ColWrite           = 0x80;
+    inline uintptr_t Player_Velocity           = 0xF0;
+    inline uintptr_t Player_IsGrounded         = 0x11C;
 
     // ── Avatar & Camera (Resolved from live child classes) ──
     inline uintptr_t Avatar_Uma                = 0;
@@ -89,8 +92,10 @@ namespace Offsets {
 
     // ── Loot ──
     inline uintptr_t MetaManager_DropObjects   = 0x18;
+    inline uintptr_t DropObject_Guid           = 0x20;
     inline uintptr_t DropObject_Position       = 0x68;
     inline uintptr_t DropObject_ResID          = 0x64;
+    inline uintptr_t DropObject_Landed         = 0x9C;
 
     // ── HitInfo (Resolved from live AimInfo Il2CppClass) ──
     inline uintptr_t HitInfo_HitLocation       = 0x28;
