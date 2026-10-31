@@ -21,6 +21,9 @@ namespace esp {
     inline bool  crosshair       = true;
     inline bool  firing_ind      = true;
     inline bool  loot            = false;
+    inline bool  enemy_count     = true;   // KZ Enemy & Bot Counter HUD
+    inline bool  offscreen_radar = true;   // KZ 360 Off-Screen Threat Radar
+    inline bool  head_dot        = true;   // KZ Head Dot ESP
 
     // ── Setting ──
     inline float max_range     = 250.f;
@@ -53,7 +56,7 @@ namespace aim {
 
     // High performance parameters for fast, safe aim assistance
     constexpr float kMaxRange       = 350.0f;
-    constexpr float kFastSmoothness = 0.40f;
+    constexpr float kFastSmoothness = 0.85f;
     constexpr float kLiteSmoothness = kFastSmoothness;
 }
 
@@ -77,6 +80,9 @@ struct ConfigData {
     bool esp_crosshair;
     bool esp_firing_ind;
     bool esp_loot;
+    bool esp_enemy_count;
+    bool esp_offscreen_radar;
+    bool esp_head_dot;
     float esp_max_range;
     float esp_loot_range;
 
@@ -112,6 +118,9 @@ inline bool save(const char* path = "/data/local/tmp/.bo_client.cfg") {
     d.esp_crosshair = esp::crosshair;
     d.esp_firing_ind = esp::firing_ind;
     d.esp_loot = esp::loot;
+    d.esp_enemy_count = esp::enemy_count;
+    d.esp_offscreen_radar = esp::offscreen_radar;
+    d.esp_head_dot = esp::head_dot;
     d.esp_max_range = esp::max_range;
     d.esp_loot_range = esp::loot_range;
 
@@ -155,6 +164,9 @@ inline bool load(const char* path = "/data/local/tmp/.bo_client.cfg") {
     esp::crosshair = d.esp_crosshair;
     esp::firing_ind = d.esp_firing_ind;
     esp::loot = d.esp_loot;
+    esp::enemy_count = d.esp_enemy_count;
+    esp::offscreen_radar = d.esp_offscreen_radar;
+    esp::head_dot = d.esp_head_dot;
     esp::max_range = d.esp_max_range;
     esp::loot_range = d.esp_loot_range;
 

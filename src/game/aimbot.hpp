@@ -97,6 +97,7 @@ namespace aimbot {
             std::lock_guard<std::mutex> lk(data::players_mutex);
             for (const auto& p : data::players) {
                 if (!p.addr || p.addr == localAddr) continue;
+                if (p.isTeammate) continue;
                 if (p.curHP <= 0) continue;
                 if (p.distance > cfg::aim::kMaxRange) continue;
                 if (cfg::aim::aim_visible && !p.isVisible) continue;
@@ -133,28 +134,19 @@ namespace aimbot {
 
                     if (wPos == Vector3::Zero()) continue;
 
-                    // 2. Resolve Hit Collider & HitGroup:
-                    // If collision_zone_headshot is active, when firing to the chosen collision zone,
-                    // convert it to Head Collider and Headshot damage group (grp = 1).
+                    // 2. Resolve Hit Collider & HitGroup naturally (prevents server desync & fake damage)
                     uint64_t headCol = rpm<uint64_t>(p.addr + Offsets::Player_HedColider);
                     uint64_t bodyCol = rpm<uint64_t>(p.addr + Offsets::Player_ColWrite);
 
-                    if (cfg::aim::collision_zone_headshot) {
-                        // Collision zone feature enabled: transform chosen zone hits into Headshot damage
+                    if (targetBone == 0) {
                         col = headCol ? headCol : bodyCol;
-                        grp = 1; // Headshot damage group
+                        grp = 1; // Head
+                    } else if (targetBone == 1) {
+                        col = bodyCol ? bodyCol : headCol;
+                        grp = 2; // Neck
                     } else {
-                        // Normal zone collision mapping
-                        if (targetBone == 0) {
-                            col = headCol;
-                            grp = 1; // Head
-                        } else if (targetBone == 1) {
-                            col = bodyCol;
-                            grp = 2; // Neck / upper torso
-                        } else {
-                            col = bodyCol;
-                            grp = 0; // Torso / Chest
-                        }
+                        col = bodyCol ? bodyCol : headCol;
+                        grp = 0; // Chest / Torso
                     }
 
                     best.addr = p.addr;
@@ -171,17 +163,16 @@ namespace aimbot {
         if (!best.addr || best.worldPos == Vector3::Zero()) return;
 
         // ════════════════════════════════════════════════════════════════════
-        // 4. LITE TARGETING OVERRIDE (Replaces default abdomen target)
+        // 4. PRECISE TARGETING & CAMERA ALIGNMENT (No fake damage, server-verified)
         // ════════════════════════════════════════════════════════════════════
         Vector3 camOrigin = (cameraPos != Vector3::Zero()) ? cameraPos : localPos;
         Vector3 targetDiff = best.worldPos - camOrigin;
         float targetDist = Vector3::Magnitude(targetDiff);
 
         if (targetDist > 0.05f) {
-            // Direct vector centered precisely on chosen bone (zero lateral shift)
             Vector3 aimDir = targetDiff / targetDist;
 
-            // 1) Override Main Weapon AimInfo targeting point
+            // 1) Override Main Weapon AimInfo targeting ray
             uint64_t aimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AimInfo);
             if (aimInfo) {
                 wpm<Vector3>(aimInfo + Offsets::HitInfo_HitLocation, best.worldPos);
@@ -191,13 +182,11 @@ namespace aimbot {
                 }
                 wpm<int32_t>(aimInfo + Offsets::HitInfo_HitGroup, best.hitGroup);
                 wpm<int16_t>(aimInfo + Offsets::HitInfo_HitGroupShort, (int16_t)best.hitGroup);
-                if (cfg::aim::collision_zone_headshot) {
-                    wpm<float>(aimInfo + Offsets::HitInfo_DamageRatio, 2.0f);
-                }
+                wpm<float>(aimInfo + Offsets::HitInfo_DamageRatio, 1.0f);
                 wpm<bool>(aimInfo + Offsets::HitInfo_ViewBlocked, false);
             }
 
-            // 2) Override Aux/ADS AimInfo targeting point
+            // 2) Override Aux/ADS AimInfo targeting ray
             uint64_t auxAimInfo = rpm<uint64_t>(localAddr + Offsets::Player_AuxAimInfo);
             if (auxAimInfo) {
                 wpm<Vector3>(auxAimInfo + Offsets::HitInfo_HitLocation, best.worldPos);
@@ -207,16 +196,14 @@ namespace aimbot {
                 }
                 wpm<int32_t>(auxAimInfo + Offsets::HitInfo_HitGroup, best.hitGroup);
                 wpm<int16_t>(auxAimInfo + Offsets::HitInfo_HitGroupShort, (int16_t)best.hitGroup);
-                if (cfg::aim::collision_zone_headshot) {
-                    wpm<float>(auxAimInfo + Offsets::HitInfo_DamageRatio, 2.0f);
-                }
+                wpm<float>(auxAimInfo + Offsets::HitInfo_DamageRatio, 1.0f);
                 wpm<bool>(auxAimInfo + Offsets::HitInfo_ViewBlocked, false);
             }
 
             // 3) Update target reference
             wpm<uint64_t>(localAddr + Offsets::Player_LastAimTargetRef, best.addr);
 
-            // 4) FollowCamera targeting point override & natural smooth assist
+            // 4) FollowCamera targeting point override & responsive aim assist
             uint64_t followCam = rpm<uint64_t>(localAddr + Offsets::Player_Camera);
             if (followCam) {
                 uint64_t camAimInfo = rpm<uint64_t>(followCam + 0xC8);
@@ -229,18 +216,25 @@ namespace aimbot {
                     wpm<int32_t>(camAimInfo + Offsets::HitInfo_HitGroup, best.hitGroup);
                 }
 
-                // Natural, micro-damped camera assist (eliminates jerky upward snap)
+                // Fast responsive aim lock (smoothness 0.85f - instant tracking)
                 if (cfg::aim::aim_lock) {
                     Quaternion curCamRot = rpm<Quaternion>(followCam + Offsets::Camera_Rotation);
                     Quaternion targetCamRot = Quaternion::LookRotation(aimDir, Vector3::Up());
 
-                    Quaternion newCamRot = Quaternion::Slerp(curCamRot, targetCamRot, cfg::aim::kFastSmoothness);
+                    float smoothness = cfg::aim::kFastSmoothness;
+                    if (smoothness < 0.1f) smoothness = 0.85f;
+
+                    Quaternion newCamRot = Quaternion::Slerp(curCamRot, targetCamRot, smoothness);
                     wpm<Quaternion>(followCam + Offsets::Camera_Rotation, newCamRot);
 
                     Quaternion curPlayerRot = rpm<Quaternion>(localAddr + Offsets::Player_Rotation);
-                    Quaternion newPlayerRot = Quaternion::Slerp(curPlayerRot, targetCamRot, cfg::aim::kFastSmoothness);
+                    Quaternion newPlayerRot = Quaternion::Slerp(curPlayerRot, targetCamRot, smoothness);
                     wpm<Quaternion>(localAddr + Offsets::Player_Rotation, newPlayerRot);
                     wpm<Quaternion>(localAddr + Offsets::Player_CurrentAimRotation, newPlayerRot);
+
+                    // Sync CallSetAimRotationCount to signal immediate game-thread camera update
+                    uint32_t rotCount = rpm<uint32_t>(localAddr + Offsets::Player_CallSetAimRotationCount);
+                    wpm<uint32_t>(localAddr + Offsets::Player_CallSetAimRotationCount, rotCount + 1);
                 }
             }
         }

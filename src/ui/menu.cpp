@@ -426,7 +426,7 @@ namespace ui::menu {
         float cw = ImGui::GetContentRegionAvail().x;
 
         float colW = (cw - 32 - 24) * 0.5f;
-        float card1H = 320.f;
+        float card1H = 390.f;
         ImVec2 cp = ImGui::GetCursorScreenPos();
         NS_CardBegin(dl, cp, cw, card1H);
         NS_CardTitle(dl, {cp.x+16, cp.y+14}, oxorany("ESP Visuals"), "Master");
@@ -443,6 +443,8 @@ namespace ui::menu {
         NS_Toggle("esp_armor",   oxorany("Armor"),         &cfg::esp::armor);
         NS_Toggle("esp_dist",    oxorany("Distance"),      &cfg::esp::distance);
         NS_Toggle("esp_bot",     oxorany("Bot Tag"),       &cfg::esp::bot_tag);
+        NS_Toggle("esp_count",   oxorany("Enemy Counter"), &cfg::esp::enemy_count);
+        NS_Toggle("esp_headdot", oxorany("Head Dot"),      &cfg::esp::head_dot);
 
         ImGui::NextColumn();
 
@@ -452,11 +454,12 @@ namespace ui::menu {
         NS_Toggle("esp_weapon",  oxorany("Weapon"),        &cfg::esp::weapon);
         NS_Toggle("esp_fire",    oxorany("Firing"),        &cfg::esp::firing_ind);
         NS_Toggle("esp_loot",    oxorany("Loot"),          &cfg::esp::loot);
+        NS_Toggle("esp_radar",   oxorany("360 Radar"),     &cfg::esp::offscreen_radar);
 
         ImGui::Columns(1);
         ImGui::PopID();
 
-        ImGui::SetCursorScreenPos({cp.x+16, cp.y+265});
+        ImGui::SetCursorScreenPos({cp.x+16, cp.y+335});
         const char* tracer_origins[] = { "Screen Bottom", "Screen Center", "Screen Top" };
         NS_ComboRow("tracer_pos", oxorany("Tracer Origin"), &cfg::esp::tracer_pos, tracer_origins, 3);
 

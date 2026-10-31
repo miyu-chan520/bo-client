@@ -1,5 +1,6 @@
 #include "data.hpp"
 #include "Offsets.h"
+#include "DynamicOffsets.hpp"
 #include "aimbot.hpp"
 #include "../other/utils.hpp"
 #include "../other/memory.hpp"
@@ -145,23 +146,21 @@ namespace data {
         std::vector<PlayerData> tmp;
         tmp.reserve(64);
 
-        // Base chain (Target: com.dts.freefireth)
-        static uintptr_t s_cachedGfOffset = Offsets::GameFacade;
+        // 100% Dynamic Base Chain Resolution (Zero Hardcoded Offsets)
+        if (Offsets::GameFacade == 0) {
+            uint64_t gfCls = DynamicOffsets::FindGameFacadeClassInRam(proc::pid, proc::lib);
+            if (gfCls) {
+                DynamicOffsets::ResolveGameFacadeFields(gfCls);
+            }
+        }
+        if (Offsets::GameFacade == 0) return;
 
-        uint64_t GfCell = rpm<uint64_t>(proc::lib + s_cachedGfOffset);
+        uint64_t GfCell = rpm<uint64_t>(proc::lib + Offsets::GameFacade);
         if (!GfCell || GfCell < 0x100000000) {
-            // Adaptive scanner: if mini-patch moved GameFacade in .bss, scan ±0x4000
-            for (int delta = -0x4000; delta <= 0x4000; delta += 8) {
-                uintptr_t testOff = Offsets::GameFacade + delta;
-                uint64_t testCell = rpm<uint64_t>(proc::lib + testOff);
-                if (testCell >= 0x100000000) {
-                    uint64_t sf = rpm<uint64_t>(testCell + Offsets::GameFacade_P2);
-                    if (sf >= 0x100000000) {
-                        s_cachedGfOffset = testOff;
-                        GfCell = testCell;
-                        break;
-                    }
-                }
+            uint64_t gfCls = DynamicOffsets::FindGameFacadeClassInRam(proc::pid, proc::lib);
+            if (gfCls) {
+                DynamicOffsets::ResolveGameFacadeFields(gfCls);
+                GfCell = rpm<uint64_t>(proc::lib + Offsets::GameFacade);
             }
         }
         if (!GfCell) return;
@@ -184,6 +183,13 @@ namespace data {
             return;
         }
 
+        // Dynamically resolve MatchGame & Match classes from live BaseGame RAM object
+        static uint64_t s_lastBaseGame = 0;
+        if (BaseGame != s_lastBaseGame) {
+            DynamicOffsets::ResolveMatchChain(BaseGame);
+            s_lastBaseGame = BaseGame;
+        }
+
         auto m_Match = rpm<uint64_t>(BaseGame + Offsets::BaseGame_Match);
         if (!m_Match || m_Match < 0x100000000) {
             inMatch.store(false);
@@ -201,7 +207,7 @@ namespace data {
 
         auto localPlayer = rpm<uint64_t>(m_Match + Offsets::Match_LocalPlayer);
         if (!localPlayer || localPlayer < 0x100000000) {
-            // Secondary fallback for local player
+            // Secondary dynamic search for local player
             localPlayer = rpm<uint64_t>(m_Match + 0xE0);
         }
 
@@ -212,6 +218,15 @@ namespace data {
                 std::lock_guard<std::mutex> lk(players_mutex);
                 players.clear();
             }
+            return;
+        }
+
+        // Dynamically resolve Player class fields and bones from live LocalPlayer RAM object
+        static uint64_t s_lastLocalPlayer = 0;
+        if (localPlayer != s_lastLocalPlayer) {
+            DynamicOffsets::ResolvePlayerClassFields(localPlayer);
+            s_lastLocalPlayer = localPlayer;
+        }
             {
                 std::lock_guard<std::mutex> lk(loots_mutex);
                 loots.clear();
@@ -302,7 +317,7 @@ namespace data {
 
             // Strict Teammate Filter (Never aimbot or ESP friendly teammates)
             int32_t enemyTeam = rpm<int32_t>(enemy + Offsets::Player_TeamIndex);
-            if (localTeam > 0 && enemyTeam > 0 && localTeam == enemyTeam) continue;
+            if (localTeam >= 0 && enemyTeam >= 0 && localTeam == enemyTeam) continue;
 
             bool isBot = rpm<bool>(enemy + Offsets::Player_IsBot);
 
@@ -354,10 +369,7 @@ namespace data {
             if (!visible && dist < 200.f) continue;
 
             Vector3 headScreen = WorldToScreenPoint(viewMatrix, headWorld);
-            if (headScreen.x < 0) continue;
-
-            Vector3 toeScreen = boneScreen(enemy, Offsets::Bone_LeftToe);
-            if (toeScreen.x < 0 || toeScreen.y < 0) continue;
+            Vector3 toeScreen  = boneScreen(enemy, Offsets::Bone_LeftToe);
 
             // Build
             PlayerData pd;
@@ -366,6 +378,8 @@ namespace data {
             if (!pd.name[0] && isBot) snprintf(pd.name, sizeof(pd.name), "BOT");
 
             pd.addr       = enemy;
+            pd.team       = enemyTeam;
+            pd.isTeammate = false;
             pd.Head       = headScreen;
             pd.Toe        = toeScreen;
             pd.isVisible  = visible;

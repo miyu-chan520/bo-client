@@ -7,6 +7,7 @@
 #include "game/data.hpp"
 #include "game/aimbot.hpp"
 #include "game/Offsets.h"
+#include "game/DynamicOffsets.hpp"
 #include "func/esp.hpp"
 #include "globals.h"
 #include <cstdio>
@@ -172,6 +173,9 @@ static int start_overlay() {
     // Step 2: Initialize Security Bypass & Memory Hooks
     printf(FG_BBLUE "  [2/3] " RST FG_BWHITE "Initializing security bypass...\n" RST);
     init_bypass();
+
+    // Step 2.5: Initialize Dynamic IL2CPP Offsets (Filesystem Dump + Live RAM Scan)
+    DynamicOffsets::Init(proc::pid, proc::lib, proc::pkg_name);
 
     printf(FG_BBLUE "  [~] " RST FG_BWHITE "Initializing Aimbot Engine...\n" RST);
     aimbot::Init();

@@ -69,15 +69,12 @@ inline uint64_t GetPlayerPeTF(uint64_t player) {
 
 inline Vector3 WorldToScreenPoint(const matrix& vm, const Vector3& pos) {
     float v12 = (pos.x * vm.m14) + (pos.y * vm.m24) + (pos.z * vm.m34) + vm.m44;
-    if (v12 >= 0.001f) {
-        float inv = 1.0f / v12;
-        float cx = g_sw * 0.5f;
-        float cy = g_sh * 0.5f;
-        float v9  = (pos.x * vm.m11) + (pos.y * vm.m21) + (pos.z * vm.m31) + vm.m41;
-        float v10 = (pos.x * vm.m12) + (pos.y * vm.m22) + (pos.z * vm.m32) + vm.m42;
-        return Vector3(cx + cx * v9 * inv, cy - cy * v10 * inv, 0);
-    }
-    return Vector3(-1, -1, -1);
+    float inv = (fabsf(v12) >= 0.001f) ? (1.0f / v12) : 1000.0f;
+    float cx = g_sw * 0.5f;
+    float cy = g_sh * 0.5f;
+    float v9  = (pos.x * vm.m11) + (pos.y * vm.m21) + (pos.z * vm.m31) + vm.m41;
+    float v10 = (pos.x * vm.m12) + (pos.y * vm.m22) + (pos.z * vm.m32) + vm.m42;
+    return Vector3(cx + cx * v9 * inv, cy - cy * v10 * inv, v12);
 }
 
 inline float calculate_distance(const Vector3& a, const Vector3& b) noexcept {
