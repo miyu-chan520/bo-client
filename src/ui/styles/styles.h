@@ -9,7 +9,8 @@
 #include <cmath>
 #include <algorithm>
 
-inline float g_sw, g_sh;
+extern float g_sw;
+extern float g_sh;
 
 namespace UITheme {
     // BACKGROUND

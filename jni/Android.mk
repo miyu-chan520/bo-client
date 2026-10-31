@@ -26,7 +26,6 @@ LOCAL_SRC_FILES := \
     ../src/game/features.cpp \
     ../src/internal/egl_hook.cpp \
     ../src/globals.cpp \
-    ../src/bypass.cpp \
     ../src/clipboard.cpp \
     ../src/game/data.cpp \
     ../src/protect/oxorany.cpp \

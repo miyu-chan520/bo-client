@@ -32,6 +32,14 @@ namespace sys {
 }
 
 // In-Process Safe Memory Access
+static inline bool addr_valid(uint64_t addr) {
+    return (addr >= 0x10000 && addr < 0x00007fffffffffffULL);
+}
+
+static inline bool addr_valid(const void* ptr) {
+    return addr_valid(reinterpret_cast<uint64_t>(ptr));
+}
+
 static inline bool mem_read(uintptr_t addr, void* buf, size_t sz) {
     if (!addr || addr < 0x10000 || !buf) return false;
     // In-process direct memory copy
